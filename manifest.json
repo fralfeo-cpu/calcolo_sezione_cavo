@@ -1,0 +1,17 @@
+{
+    "name": "CableSizer Pro - CEI 64-8",
+    "short_name": "CableSizer",
+    "description": "App professionale per il dimensionamento cavi BT",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#121212",
+    "theme_color": "#f2cc0d",
+    "icons": [
+        {
+            "src": "https://cdn-icons-png.flaticon.com/512/2965/2965567.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
