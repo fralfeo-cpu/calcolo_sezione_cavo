@@ -203,6 +203,11 @@ function updateLists() {
 
 function upgradeSelects() {
     document.querySelectorAll('.custom-select-wrapper').forEach(w => w.remove());
+    document.querySelectorAll('select.m3-select').forEach(s => s.classList.remove('upgraded'));
+
+    // Disable custom selects on mobile to use native smooth dropdowns
+    if (window.innerWidth <= 768) return;
+
     document.querySelectorAll('select.m3-select').forEach(select => {
         const wrapper = document.createElement('div');
         wrapper.className = 'custom-select-wrapper';

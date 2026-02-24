@@ -70,6 +70,10 @@ body {
 .content {
     flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Smooth scrolling for iOS/mobile */
+    overscroll-behavior-y: contain;
+    /* Prevents pull-to-refresh jarring */
     padding: 1rem;
     padding-bottom: 80px;
     /* Space for bottom nav */
@@ -392,7 +396,8 @@ select.m3-select.upgraded {
 }
 
 .accordion-header {
-    padding: 1rem;
+    padding: 1.25rem 1rem;
+    min-height: 56px;
     display: flex;
     justify-content: space-between;
     align-items: center;
