@@ -22,9 +22,7 @@ Per pubblicare questa applicazione gratuitamente su GitHub Pages:
 5. Sotto **Build and deployment**, seleziona il branch `main` e la cartella `/ (root)`.
 6. Clicca su **Save**. Dopo pochi minuti, la tua app sarà online all'indirizzo `https://tuo-username.github.io/nome-repo/`.
 
-## 📄 Licenza
-
-Questo progetto è distribuito sotto licenza MIT. Vedi il file `LICENSE` per i dettagli.
 
 ---
 *Sviluppato per fini ingegneristici e professionali.*
+
