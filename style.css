@@ -54,6 +54,14 @@ body {
     color: var(--on-surface);
     line-height: 1.5;
     -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+    /* Prevent pull to refresh */
+}
+
+/* Ensure smooth scrolling across app */
+html,
+body {
+    overflow-x: hidden;
 }
 
 .hidden {

@@ -205,8 +205,17 @@ function upgradeSelects() {
     document.querySelectorAll('.custom-select-wrapper').forEach(w => w.remove());
     document.querySelectorAll('select.m3-select').forEach(s => s.classList.remove('upgraded'));
 
-    // Disable custom selects on mobile to use native smooth dropdowns
-    if (window.innerWidth <= 768) return;
+    // ALWAYS use native dropdowns on mobile to prevent scrolling/touch issues 
+    const isMobile = window.matchMedia("(max-width: 768px)").matches || ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    if (isMobile) {
+        document.querySelectorAll('select.m3-select').forEach(s => {
+            s.style.display = 'block'; // Ensure native select is visible
+            s.style.appearance = 'auto'; // Re-enable drop arrow styling
+            // Ensure inputs bubble changes correctly
+            s.addEventListener('change', () => s.dispatchEvent(new Event('input', { bubbles: true })));
+        });
+        return;
+    }
 
     document.querySelectorAll('select.m3-select').forEach(select => {
         const wrapper = document.createElement('div');
