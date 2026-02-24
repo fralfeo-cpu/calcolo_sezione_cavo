@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#005bb5">
+    <title>Cable Sizer Pro V4</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- Navigation -->
+        <nav class="navigation">
+            <div class="nav-item active" data-target="sec-calc">
+                <i data-lucide="calculator"></i>
+                <span>Calcolo</span>
+            </div>
+            <div class="nav-item" data-target="sec-dv">
+                <i data-lucide="activity"></i>
+                <span>Verifica ΔV</span>
+            </div>
+            <div class="nav-item" data-target="sec-archive">
+                <i data-lucide="archive"></i>
+                <span>Archivio</span>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="content">
+            <!-- HEADER -->
+            <header class="top-bar">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <h1>Cable Sizer Pro</h1>
+                    <div class="badge">v4.0_Pro</div>
+                </div>
+                <button class="icon-btn" id="btn-theme-toggle" title="Cambia Tema">
+                    <i data-lucide="moon"></i>
+                </button>
+            </header>
+
+            <!-- SECTION: CALCOLO -->
+            <section id="sec-calc" class="view-section active">
+                <div class="card result-card" id="main-result-card">
+                    <div class="result-placeholder" id="res-placeholder">Inserisci i parametri per calcolare la sezione.
+                    </div>
+                    <div class="result-data hidden" id="res-data">
+                        <div class="res-header">
+                            <div>
+                                <div class="res-label">Sezione Calcolata</div>
+                                <div class="res-value h1" id="res-sec">-- mm²</div>
+                            </div>
+                            <button class="icon-btn primary" id="btn-save" title="Salva Progetto"><i
+                                    data-lucide="save"></i></button>
+                        </div>
+                        <div class="res-grid">
+                            <div class="res-item">
+                                <span class="res-label">Corrente Ib</span>
+                                <span class="res-val" id="res-ib">-- A</span>
+                            </div>
+                            <div class="res-item">
+                                <span class="res-label">Portata Iz</span>
+                                <span class="res-val" id="res-iz">-- A</span>
+                            </div>
+                            <div class="res-item">
+                                <span class="res-label">Caduta ΔV</span>
+                                <span class="res-val" id="res-dv">-- %</span>
+                            </div>
+                            <div class="res-item">
+                                <span class="res-label">Status ΔV</span>
+                                <span class="res-val" id="res-status">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="forms-container">
+                    <!-- Configurazione Base -->
+                    <div class="card">
+                        <h2>1. Parametri Elettrici</h2>
+                        <div class="input-group">
+                            <label>Sistema</label>
+                            <div class="pill-group" id="pill-sys">
+                                <button class="pill" data-val="tri">Trifase</button>
+                                <button class="pill active" data-val="mono">Monofase</button>
+                            </div>
+                        </div>
+
+                        <div class="input-row">
+                            <div class="input-field">
+                                <label>Tensione (V)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="in-v" value="230">
+                                    <span class="unit">V</span>
+                                </div>
+                            </div>
+                            <div class="input-field">
+                                <label>Lunghezza (m)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="in-l" value="50">
+                                    <span class="unit">m</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Dato di Ingresso</label>
+                            <div class="pill-group" id="pill-input-type">
+                                <button class="pill active" data-val="p">Potenza</button>
+                                <button class="pill" data-val="ib">Corrente</button>
+                            </div>
+                        </div>
+
+                        <div class="input-row">
+                            <div class="input-field">
+                                <label id="lbl-load">Potenza (kW)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="in-load" value="10">
+                                    <span class="unit" id="unit-load">kW</span>
+                                </div>
+                            </div>
+                            <div class="input-field" id="wrap-cosphi">
+                                <label>Fattore di Potenza</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="in-cosphi" step="0.01" value="0.9">
+                                    <span class="unit">cosφ</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="input-field" style="margin-top:1rem">
+                            <label>ΔV Max (%)</label>
+                            <div class="input-with-unit">
+                                <input type="number" id="in-dvmax" step="0.5" value="4">
+                                <span class="unit">%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Configurazione Cavo -->
+                    <div class="card">
+                        <h2>2. Configurazione Cavo</h2>
+
+                        <div class="input-group">
+                            <label>Cat. Tensione</label>
+                            <div class="pill-group" id="pill-tens">
+                                <button class="pill active" data-val="bt_bassa_tensione">BT</button>
+                                <button class="pill" data-val="mt_media_tensione">MT</button>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Materiale</label>
+                            <div class="pill-group" id="pill-mat">
+                                <button class="pill active" data-val="rame">Rame</button>
+                                <button class="pill" data-val="alluminio">Alluminio</button>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Isolamento</label>
+                            <select id="sel-iso" class="m3-select">
+                                <option value="pvc_70C" selected>PVC (70°C)</option>
+                                <option value="epr_xlpe_90C">EPR / XLPE (90°C)</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Posa</label>
+                            <select id="sel-posa" class="m3-select">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Fattori di Correzione -->
+                    <div class="accordion" id="acc-k">
+                        <div class="accordion-header">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <i data-lucide="sliders"></i>
+                                <span>Fattori di Correzione (K)</span>
+                            </div>
+                            <i data-lucide="chevron-down" class="acc-icon"></i>
+                        </div>
+                        <div class="accordion-content">
+                            <div class="input-row">
+                                <div class="input-field">
+                                    <label id="lbl-temp">Temperatura (°C) [K1]</label>
+                                    <select id="sel-temp" class="m3-select"></select>
+                                </div>
+                                <div class="input-field">
+                                    <label>Raggruppamento [K2]</label>
+                                    <select id="sel-group" class="m3-select"></select>
+                                </div>
+                            </div>
+
+                            <div class="input-row" id="wrap-terra" style="display:none; margin-top:1rem;">
+                                <div class="input-field">
+                                    <label>Profondità (m) [K3]</label>
+                                    <select id="sel-depth" class="m3-select"></select>
+                                </div>
+                                <div class="input-field">
+                                    <label>Resistività [K4]</label>
+                                    <select id="sel-res" class="m3-select"></select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: VERIFICA DV (Quick Check) -->
+            <section id="sec-dv" class="view-section hidden">
+                <div class="card">
+                    <h2>Calcolatore Rapido ΔV</h2>
+                    <p class="text-sub">Calcola la caduta di tensione percentuale conoscendo già la sezione.</p>
+                    <div class="input-row" style="margin-top:1rem;">
+                        <div class="input-field">
+                            <label>Sistema</label>
+                            <select id="q-sys" class="m3-select">
+                                <option value="tri">Trifase</option>
+                                <option value="mono">Monofase</option>
+                            </select>
+                        </div>
+                        <div class="input-field">
+                            <label>Tens. / Cat.</label>
+                            <div style="display:flex; gap:0.5rem">
+                                <input type="number" id="q-v" value="400"
+                                    style="width:60px; border-radius:12px; border:1px solid var(--outline); padding:8px;">
+                                <select id="q-cat" class="m3-select" style="flex:1">
+                                    <option value="bt_bassa_tensione">BT</option>
+                                    <option value="mt_media_tensione">MT</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="input-row" style="margin-top:1rem;">
+                        <div class="input-field">
+                            <label>Ib (A)</label>
+                            <input type="number" id="q-ib" value="25" class="m3-input">
+                        </div>
+                        <div class="input-field">
+                            <label>Lungh. (m)</label>
+                            <input type="number" id="q-l" value="100" class="m3-input">
+                        </div>
+                    </div>
+                    <div class="input-row" style="margin-top:1rem;">
+                        <div class="input-field">
+                            <label>Materiale</label>
+                            <select id="q-mat" class="m3-select">
+                                <option value="rame">Rame</option>
+                                <option value="alluminio">Alluminio</option>
+                            </select>
+                        </div>
+                        <div class="input-field">
+                            <label>Sezione</label>
+                            <select id="q-sec" class="m3-select"></select>
+                        </div>
+                    </div>
+                    <div class="result-placeholder" style="margin-top:1.5rem; text-align:center;">
+                        <span style="font-size:1rem; color:var(--on-surface-variant)">Esito ΔV:</span><br>
+                        <span style="font-size:2rem; font-weight:700; color:var(--primary)" id="q-res">-- %</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: ARCHIVIO -->
+            <section id="sec-archive" class="view-section hidden">
+                <div class="card p-0">
+                    <div style="padding:1rem; display:flex; justify-content:space-between; align-items:center;">
+                        <h2>Progetti Salvati</h2>
+                        <button class="icon-btn text-error" id="btn-clear-archive" title="Svuota Tutto"><i
+                                data-lucide="trash-2"></i></button>
+                    </div>
+                    <div id="archive-list" class="archive-list">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="modal-save">
+        <div class="modal-card">
+            <h3>Salva Progetto</h3>
+            <input type="text" id="in-proj-name" class="m3-input" placeholder="Nome progetto..."
+                style="margin-top:1rem; width:100%;">
+            <div class="modal-actions">
+                <button class="pill" id="btn-modal-cancel">Annulla</button>
+                <button class="pill active" id="btn-modal-confirm">Salva</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="db.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

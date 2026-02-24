@@ -1,0 +1,8 @@
+{
+    "name": "Cable Sizer Pro V4",
+    "short_name": "CableSizer",
+    "start_url": "index.html",
+    "display": "standalone",
+    "background_color": "#005bb5",
+    "theme_color": "#005bb5"
+}
