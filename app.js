@@ -374,6 +374,7 @@ function performCalculation() {
         let finalIz = 0;
         let finalDv = 0;
         let finalN = 1;
+        let finalKF = null;
 
         const autoParallelEl = document.getElementById('ch-auto-parallel');
         const isAutoParallel = autoParallelEl && autoParallelEl.checked;
@@ -404,6 +405,7 @@ function performCalculation() {
                         finalIz = iz;
                         finalDv = dvPerc;
                         finalN = N;
+                        finalKF = kF;
                         break;
                     }
                 }
@@ -418,6 +420,16 @@ function performCalculation() {
                 ib: ib,
                 iz: finalIz,
                 dv: finalDv,
+                kFactors: {
+                    k1: finalKF.k1,
+                    k2: finalKF.k2,
+                    k3: finalKF.k3,
+                    k4: finalKF.k4,
+                    ktot: finalKF.k1 * finalKF.k2 * finalKF.k3 * finalKF.k4
+                },
+                inputs: {
+                    v, l, cosphi, isTri
+                },
                 status: 'OK'
             };
             setUISuccess(currentResult);
@@ -585,35 +597,146 @@ window.exportPDF = function (id) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    doc.setFillColor(0, 91, 181);
-    doc.rect(0, 0, 210, 40, 'F');
+    // -- Header --
+    doc.setFillColor(30, 144, 255); // Dodger Blue Theme
+    doc.rect(0, 0, 210, 45, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
-    doc.text("Cable Sizer Pro V4", 20, 25);
-    doc.setFontSize(10);
-    doc.text("Report Calcolo", 20, 32);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(24);
+    doc.text("CABLE SIZER PRO V4", 20, 25);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.text("Report Ufficiale di Calcolo Elettrico", 20, 35);
 
-    doc.setTextColor(30, 30, 30);
+    // -- Project Info --
+    doc.setTextColor(40, 40, 40);
     doc.setFontSize(14);
-    doc.text(`Progetto: ${proj.name}`, 20, 55);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Progetto: ${proj.name.toUpperCase()}`, 20, 60);
     doc.setFontSize(10);
-    doc.text(`Data: ${proj.date}`, 20, 62);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Data elaborazione: ${proj.date}`, 20, 66);
+
+    // Divider
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, 71, 190, 71);
 
     let y = 80;
-    const data = [
-        ["Sezione Calcolata", proj.data.n > 1 ? `${proj.data.n} x ${proj.data.section} mm²` : proj.data.section + " mm²"],
-        ["Corrente Ib", proj.data.ib.toFixed(2) + " A"],
-        ["Portata Iz", proj.data.iz.toFixed(2) + " A"],
-        ["Caduta Tensione", proj.data.dv.toFixed(2) + " %"],
+
+    // -- Main Results Section --
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 144, 255);
+    doc.text("RISULTATI DEL CALCOLO ELETTRICO", 20, y);
+    y += 8;
+
+    doc.setTextColor(50, 50, 50);
+    doc.setFont("helvetica", "normal");
+
+    const dataDisplay = [
+        ["Formazione Cavo Principale:", proj.data.n > 1 ? `${proj.data.n} x ${proj.data.section} mm²` : proj.data.section + " mm²"],
+        ["Corrente di Impiego (Ib):", proj.data.ib.toFixed(2) + " A"],
+        ["Portata in Regime (Iz):", proj.data.iz.toFixed(2) + " A"],
+        ["Caduta Tensione (ΔV):", proj.data.dv.toFixed(2) + " %"],
     ];
 
-    data.forEach(([l, v]) => {
-        doc.setFontSize(11);
-        doc.text(l, 20, y);
-        doc.setFontSize(12);
-        doc.text(v, 80, y);
-        y += 10;
+    dataDisplay.forEach(([l, v]) => {
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text(l, 25, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(v, 90, y);
+        y += 7;
     });
+
+    // Divider
+    y += 2;
+    doc.setDrawColor(230, 230, 230);
+    doc.line(20, y, 190, y);
+    y += 10;
+
+    // -- K Factors Section --
+    if (proj.data.kFactors) {
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(46, 204, 113); // Emerald Green
+        doc.text("FATTORI DI CORREZIONE APPLICATI (K)", 20, y);
+        y += 8;
+        doc.setTextColor(50, 50, 50);
+
+        let kX = 25;
+        const kf = proj.data.kFactors;
+        const kDataArr = [
+            ["K1 (Temp)", kf.k1],
+            ["K2 (Gruppo)", kf.k2],
+            ["K3 (Profond.)", kf.k3],
+            ["K4 (Resist.)", kf.k4]
+        ];
+
+        doc.setFontSize(9);
+        kDataArr.forEach(([label, val]) => {
+            doc.setFont("helvetica", "normal");
+            doc.text(`${label}:`, kX, y);
+            doc.setFont("helvetica", "bold");
+            doc.text(`${val}`, kX + 18, y);
+            kX += 35;
+        });
+
+        y += 8;
+        doc.setFont("helvetica", "normal");
+        doc.text("Coefficiente Globale Applicato (K1·K2·K3·K4):", 25, y);
+        doc.setFont("helvetica", "bold");
+        doc.text(kf.ktot.toFixed(2), 90, y);
+
+        y += 6;
+        doc.setDrawColor(230, 230, 230);
+        doc.line(20, y, 190, y);
+        y += 10;
+    }
+
+    // -- Formulas Section --
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(243, 156, 18); // Orange
+    doc.text("METODOLOGIA E CRITERI DI VERIFICA", 20, y);
+    y += 8;
+
+    // Boxes
+    doc.setFillColor(250, 250, 250);
+    doc.setDrawColor(220, 220, 220);
+
+    // Formula Portata
+    doc.rect(20, y, 170, 12, 'FD');
+    doc.setTextColor(80, 80, 80);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "italic");
+    doc.text("Calcolo Portata Regata:", 25, y + 8);
+    doc.setFont("helvetica", "bold");
+    doc.text("Iz = I0 · K_tot", 60, y + 8);
+    doc.setFont("helvetica", "normal");
+    doc.text("|", 110, y + 8);
+    doc.setFont("helvetica", "italic");
+    doc.text("Criterio:", 120, y + 8);
+    doc.setFont("helvetica", "bold");
+    doc.text("Iz ≥ Ib", 135, y + 8);
+    y += 18;
+
+    // Formula DV
+    let kSys = "2";
+    if (proj.data.inputs) kSys = proj.data.inputs.isTri ? "√3" : "2";
+
+    doc.rect(20, y, 170, 12, 'FD');
+    doc.setFont("helvetica", "italic");
+    doc.text("Caduta Tensione:", 25, y + 8);
+    doc.setFont("helvetica", "bold");
+    doc.text(`ΔV% = (${kSys} · L · Ib · [R cosφ + X sinφ] / 1000) / V · 100`, 55, y + 8);
+
+    // Footer
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.setFont("helvetica", "normal");
+    doc.text("Generato da Cable Sizer Pro V4 - PWA Elettrica Offline", 105, 285, null, null, "center");
 
     doc.save(`Report_${proj.name.replace(/\s+/g, '_')}.pdf`);
 }
