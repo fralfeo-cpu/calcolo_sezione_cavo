@@ -23,9 +23,11 @@
 }
 
 body.dark-mode {
-    --primary: #a9c7ff;
-    --on-primary: #003066;
+    --primary: #1e90ff;
+    /* Colore primario: blu acceso (Dodger Blue) */
+    --on-primary: #ffffff;
     --primary-container: #00458e;
+    /* Contenitore per dare un fondo un po' più scuro o mantenere coerenza */
     --on-primary-container: #d6e3ff;
 
     --surface: #1a1b1e;
@@ -177,12 +179,22 @@ label {
 
 .input-row {
     display: flex;
+    flex-direction: column;
     gap: 1rem;
+    margin-bottom: 1rem;
 }
 
 .input-field {
     flex: 1;
+}
+
+.input-group,
+.input-field {
     margin-bottom: 1rem;
+}
+
+.input-row .input-field {
+    margin-bottom: 0;
 }
 
 .input-group {
@@ -574,5 +586,9 @@ select.m3-select.upgraded {
         grid-template-columns: 1fr 1fr;
         gap: 1rem;
         align-items: start;
+    }
+
+    .input-row {
+        flex-direction: row;
     }
 }

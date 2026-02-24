@@ -91,7 +91,7 @@ function initUI() {
     }
 
     // Input listeners
-    const inputs = ['in-v', 'in-l', 'in-load', 'in-cosphi', 'in-dvmax', 'sel-iso', 'sel-posa', 'sel-temp', 'sel-group', 'sel-depth', 'sel-res'];
+    const inputs = ['in-v', 'in-l', 'in-load', 'in-cosphi', 'in-dvmax', 'sel-iso', 'sel-posa', 'sel-temp', 'sel-group', 'sel-depth', 'sel-res', 'sel-n-cavi', 'ch-auto-parallel'];
     inputs.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -141,13 +141,13 @@ function updateLists() {
     let posaMethods = [];
     if (tens === 'bt_bassa_tensione') {
         const dbCat = DB.portate_bt_bassa_tensione[iso];
-        if (dbCat && dbCat[mat]) {
-            posaMethods = Object.keys(dbCat[mat]);
+        if (dbCat && dbCat['rame']) {
+            posaMethods = Object.keys(dbCat['rame']);
         }
     } else {
         const dbCat = DB.portate_mt_media_tensione.xlpe_epr_90C;
-        if (dbCat && dbCat[mat]) {
-            posaMethods = Object.keys(dbCat[mat]);
+        if (dbCat && dbCat['rame']) {
+            posaMethods = Object.keys(dbCat['rame']);
         }
     }
 
@@ -264,7 +264,7 @@ function calculateIb(p, v, cosphi, isTri) {
     return (p * 1000) / (v * cosphi);
 }
 
-function getKFactors() {
+function getKFactors(nConductors = 1) {
     const tens = document.querySelector('#pill-tens .active').getAttribute('data-val');
     if (tens !== 'bt_bassa_tensione') return { k1: 1, k2: 1, k3: 1, k4: 1 }; // simplified for MT
 
@@ -284,14 +284,30 @@ function getKFactors() {
     try {
         if (env === 'terreno') {
             k1 = kData.k1_temperatura_terreno[iso][temp] || 1;
+            const effGroup = Math.min(parseInt(group) * nConductors, 5).toString(); // max table group for interrato is usually 5 or 6, clip to avoid undefined
             k2 = kData.k2_raggruppamento_interrato[group] || 1;
+            // recalculate real K2 based on effGroup
+            let matchedK2 = kData.k2_raggruppamento_interrato[effGroup];
+            if (!matchedK2) {
+                // get the highest available key
+                const keys = Object.keys(kData.k2_raggruppamento_interrato).map(Number).sort((a, b) => b - a);
+                matchedK2 = kData.k2_raggruppamento_interrato[keys[0]];
+            }
+            k2 = matchedK2 || 1;
+
             const depth = document.getElementById('sel-depth').value;
             k3 = kData.k3_profondita_interrato[depth] || 1;
             const res = document.getElementById('sel-res').value;
             k4 = kData.k4_resistivita_terreno[res] || 1;
         } else {
             k1 = kData.k1_temperatura_aria[iso][temp] || 1;
-            k2 = kData.k2_raggruppamento_aria[group] || 1;
+            const effGroup = Math.min(parseInt(group) * nConductors, 6).toString();
+            let matchedK2 = kData.k2_raggruppamento_aria[effGroup];
+            if (!matchedK2) {
+                const keys = Object.keys(kData.k2_raggruppamento_aria).map(Number).sort((a, b) => b - a);
+                matchedK2 = kData.k2_raggruppamento_aria[keys[0]];
+            }
+            k2 = matchedK2 || 1;
         }
     } catch (e) { }
 
@@ -324,9 +340,9 @@ function performCalculation() {
 
         let portateSchema;
         if (tens === 'bt_bassa_tensione') {
-            portateSchema = DB.portate_bt_bassa_tensione[iso]?.[mat]?.[posa];
+            portateSchema = DB.portate_bt_bassa_tensione[iso]?.[mat]?.[posa] || DB.portate_bt_bassa_tensione[iso]?.['rame']?.[posa];
         } else {
-            portateSchema = DB.portate_mt_media_tensione.xlpe_epr_90C?.[mat]?.[posa];
+            portateSchema = DB.portate_mt_media_tensione.xlpe_epr_90C?.[mat]?.[posa] || DB.portate_mt_media_tensione.xlpe_epr_90C?.['rame']?.[posa];
         }
 
         if (!portateSchema) return setUIError();
@@ -334,43 +350,57 @@ function performCalculation() {
         const paramElettrici = DB.parametri_elettrici[tens]?.[mat];
         if (!paramElettrici) return setUIError();
 
-        const kF = getKFactors();
-        const Ktot = kF.k1 * kF.k2 * kF.k3 * kF.k4;
+        const k = isTri ? Math.sqrt(3) : 2;
+        const phi = Math.acos(cosphi);
+        const sinphi = Math.sin(phi);
 
         const sezioni = Object.keys(portateSchema).sort((a, b) => parseFloat(a) - parseFloat(b));
 
         let validSection = null;
         let finalIz = 0;
         let finalDv = 0;
+        let finalN = 1;
 
-        for (let s of sezioni) {
-            const i0 = portateSchema[s];
-            const iz = i0 * Ktot;
+        const autoParallelEl = document.getElementById('ch-auto-parallel');
+        const isAutoParallel = autoParallelEl && autoParallelEl.checked;
+        const baseN = parseInt(document.getElementById('sel-n-cavi')?.value) || 1;
+        const maxN = isAutoParallel ? 6 : baseN;
 
-            if (iz >= ib) {
-                // Criterio termico ok. FASE C: Verifica DV
-                const R = paramElettrici[s].R;
-                const X = paramElettrici[s].X;
+        for (let N = baseN; N <= maxN; N++) {
+            const kF = getKFactors(N);
+            const Ktot = kF.k1 * kF.k2 * kF.k3 * kF.k4;
 
-                const k = isTri ? Math.sqrt(3) : 2;
-                const phi = Math.acos(cosphi);
-                const sinphi = Math.sin(phi);
+            for (let s of sezioni) {
+                // Salta le sezioni base (es. 1.5, 2.5) se non esistono nel database parametri elettrici del materiale scelto
+                if (!paramElettrici[s]) continue;
 
-                const dvVolts = (k * l * ib * (R * cosphi + X * sinphi)) / 1000;
-                const dvPerc = (dvVolts / v) * 100;
+                const i0 = portateSchema[s];
+                const iz = i0 * Ktot * N;
 
-                if (dvPerc <= dvMax) {
-                    validSection = s;
-                    finalIz = iz;
-                    finalDv = dvPerc;
-                    break;
+                if (iz >= ib) {
+                    // Criterio termico ok. FASE C: Verifica DV
+                    const R = paramElettrici[s].R / N; // equivalent resistance for parallel wires
+                    const X = paramElettrici[s].X / N; // equivalent reactance
+
+                    const dvVolts = (k * l * ib * (R * cosphi + X * sinphi)) / 1000;
+                    const dvPerc = (dvVolts / v) * 100;
+
+                    if (dvPerc <= dvMax) {
+                        validSection = s;
+                        finalIz = iz;
+                        finalDv = dvPerc;
+                        finalN = N;
+                        break;
+                    }
                 }
             }
+            if (validSection) break;
         }
 
         if (validSection) {
             currentResult = {
                 section: validSection,
+                n: finalN,
                 ib: ib,
                 iz: finalIz,
                 dv: finalDv,
@@ -396,7 +426,7 @@ function setUISuccess(r) {
     card.classList.remove('error');
     card.classList.add('ok');
 
-    document.getElementById('res-sec').textContent = `${r.section} mm²`;
+    document.getElementById('res-sec').textContent = r.n > 1 ? `${r.n} x ${r.section} mm²` : `${r.section} mm²`;
     document.getElementById('res-ib').textContent = r.ib.toFixed(2) + ' A';
     document.getElementById('res-iz').textContent = r.iz.toFixed(2) + ' A';
     document.getElementById('res-dv').textContent = r.dv.toFixed(2) + ' %';
@@ -507,7 +537,7 @@ function loadArchive() {
         <div class="archive-item">
             <div>
                 <div class="archive-info-title">${item.name}</div>
-                <div class="archive-info-sub">${item.date} | Sec: ${item.data.section} mm² | Iz: ${item.data.iz.toFixed(1)} A</div>
+                <div class="archive-info-sub">${item.date} | Sec: ${item.data.n > 1 ? item.data.n + 'x' + item.data.section : item.data.section} mm² | Iz: ${item.data.iz.toFixed(1)} A</div>
             </div>
             <div style="display:flex; gap:8px;">
                 <button class="icon-btn" style="color:var(--primary)" onclick="exportPDF(${item.id})"><i data-lucide="download"></i></button>
@@ -557,7 +587,7 @@ window.exportPDF = function (id) {
 
     let y = 80;
     const data = [
-        ["Sezione Calcolata", proj.data.section + " mm²"],
+        ["Sezione Calcolata", proj.data.n > 1 ? `${proj.data.n} x ${proj.data.section} mm²` : proj.data.section + " mm²"],
         ["Corrente Ib", proj.data.ib.toFixed(2) + " A"],
         ["Portata Iz", proj.data.iz.toFixed(2) + " A"],
         ["Caduta Tensione", proj.data.dv.toFixed(2) + " %"],
