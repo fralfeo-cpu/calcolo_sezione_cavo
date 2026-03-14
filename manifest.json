@@ -1,10 +1,10 @@
 {
-    "name": "Cable Sizer Pro V4",
-    "short_name": "CableSizer",
+    "name": "ElectroSuite v2.0",
+    "short_name": "ElectroSuite",
     "start_url": "./index.html",
     "display": "standalone",
-    "background_color": "#005bb5",
-    "theme_color": "#005bb5",
+    "background_color": "#0F4C81",
+    "theme_color": "#0F4C81",
     "icons": [
         {
             "src": "icon.png",
