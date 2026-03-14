@@ -94,6 +94,7 @@ function initUI() {
                         pillMono.style.pointerEvents = 'none';
                         pillMono.classList.remove('active');
                         pillTri.classList.add('active');
+                        inV.value = 20000; // Default MT voltage
                     } else {
                         pillMono.style.opacity = '1';
                         pillMono.style.pointerEvents = 'auto';
@@ -107,7 +108,8 @@ function initUI() {
                 }
 
                 if (group.id === 'pill-sys') {
-                    const isMT = document.querySelector('#pill-tens .active').getAttribute('data-val') === 'mt_media_tensione';
+                    const pillTensWrapper = document.getElementById('pill-tens');
+                    const isMT = pillTensWrapper.querySelector('.active').getAttribute('data-val') === 'mt_media_tensione';
                     const inV = document.getElementById('in-v');
                     if (!isMT) {
                         const currentSys = pill.getAttribute('data-val');
@@ -199,21 +201,44 @@ function resetModule(targetId) {
 
     // Reset numeric inputs
     section.querySelectorAll('input[type="number"], input[type="text"]').forEach(input => {
-        input.value = "";
+        if (input.id === 'in-cosphi') {
+            input.value = "0.9";
+        } else if (input.id === 'in-dvmax') {
+            input.value = "4";
+        } else if (input.id === 'in-v') {
+            const isTri = document.querySelector('#pill-sys .active')?.getAttribute('data-val') === 'tri';
+            const isMT = document.querySelector('#pill-tens .active')?.getAttribute('data-val') === 'mt_media_tensione';
+            if (isMT) input.value = "20000";
+            else input.value = isTri ? "400" : "230";
+        } else {
+            input.value = "";
+        }
     });
 
     // Reset selects
     section.querySelectorAll('select').forEach(select => {
-        select.selectedIndex = 0; // The disabled placeholder
+        // Special selects that shouldn't be reset to 0 index (placeholder) but to standard defaults
+        if (select.id === 'sel-n-cavi') {
+            select.value = "1";
+        } else if (select.id === 'sel-iso') {
+            select.selectedIndex = 0;
+        } else {
+            select.selectedIndex = 0; // The disabled placeholder
+        }
+
         if (select.classList.contains('upgraded')) {
             // Need to update custom select wrapper UI text manually
             const wrapper = select.nextElementSibling;
             if (wrapper && wrapper.classList.contains('custom-select-wrapper')) {
                 const triggerSpan = wrapper.querySelector('.custom-select-trigger span');
-                if (triggerSpan && select.options[0]) triggerSpan.textContent = select.options[0].text;
+                const selectedText = select.options[select.selectedIndex]?.text || '';
+                if (triggerSpan) triggerSpan.textContent = selectedText;
 
                 // Clear selection states in custom dropdown list
-                wrapper.querySelectorAll('.custom-option').forEach(o => o.classList.remove('selected'));
+                wrapper.querySelectorAll('.custom-option').forEach(o => {
+                    o.classList.remove('selected');
+                    if (o.textContent === selectedText) o.classList.add('selected');
+                });
             }
         }
     });
