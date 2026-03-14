@@ -163,6 +163,13 @@ function initUI() {
         if (typeof calculatePV === 'function') calculatePV();
     });
 
+    // PV Inputs listeners to enable "Calcola Stringhe" button
+    const pvInputIds = ['in-pv-vmaxdc', 'in-pv-imax', 'in-pv-mpptmin', 'in-pv-mpptmax', 'in-pv-wp', 'in-pv-beta', 'in-pv-voc', 'in-pv-isc', 'in-pv-vmp', 'in-pv-tmin', 'in-pv-tmax'];
+    pvInputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', () => validateForm('sec-fotovoltaico'));
+    });
+
     // PV Save button also opens the modal
     const btnSavePv = document.getElementById('btn-save-pv');
     if (btnSavePv) btnSavePv.addEventListener('click', showSaveModal);
