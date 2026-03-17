@@ -171,10 +171,10 @@ function initUI() {
                         pillMono.classList.remove('active');
                         pillTri.classList.add('active');
                         inV.value = 20000; // Default MT voltage
-                        
+
                         const cardProt = document.getElementById('card-prot');
                         if (cardProt) cardProt.style.display = 'none';
-                        
+
                         // Obbligo isolamento in Media Tensione
                         const selIso = document.getElementById('sel-iso');
                         if (selIso) {
@@ -241,6 +241,11 @@ function initUI() {
         }
     });
 
+    // Re-initialize Lucide icons to render both static and dynamic icons
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
+
     // Unit Potenza selector (kW / kVA): toggle cos-phi visibility
     const selUnitPotenza = document.getElementById('sel-unit-potenza');
     if (selUnitPotenza) {
@@ -272,7 +277,7 @@ function initUI() {
     });
 
     // PV Inputs listeners to enable "Calcola Impianto" button
-    const pvInputIds = ['in-pv-vmaxdc', 'in-pv-nmppt', 'in-pv-imax', 'in-pv-mpptmin', 'in-pv-mpptmax', 'in-pv-pmaxcc', 'in-pv-pac', 'in-pv-wp', 'in-pv-beta', 'in-pv-voc', 'in-pv-isc', 'in-pv-vmp', 'in-pv-ntot', 'in-pv-lcavo', 'in-pv-tmin', 'in-pv-tmax', 'in-pv-gamma'];
+    const pvInputIds = PV_INPUT_IDS_ALL;
     pvInputIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', () => validateForm('sec-fotovoltaico'));
@@ -285,7 +290,7 @@ function initUI() {
         tab.addEventListener('click', () => {
             archiveTabs.forEach(t => t.classList.remove('active'));
             archiveContents.forEach(c => c.classList.add('hidden'));
-            
+
             tab.classList.add('active');
             const targetId = tab.getAttribute('data-tab');
             document.getElementById(targetId)?.classList.remove('hidden');
@@ -605,6 +610,27 @@ function upgradeSelects() {
     lucide.createIcons();
 }
 
+/**
+ * Utility to sync custom select UI when underlying native select is changed programmatically
+ */
+function syncCustomSelects(selectId) {
+    const select = document.getElementById(selectId);
+    if (!select || !select.classList.contains('upgraded')) return;
+
+    const wrapper = select.nextElementSibling;
+    if (wrapper && wrapper.classList.contains('custom-select-wrapper')) {
+        const span = wrapper.querySelector('.custom-select-trigger span');
+        if (span) span.textContent = select.options[select.selectedIndex]?.text || '';
+
+        wrapper.querySelectorAll('.custom-option').forEach(o => {
+            o.classList.remove('selected');
+            if (o.textContent === (select.options[select.selectedIndex]?.text || '')) {
+                o.classList.add('selected');
+            }
+        });
+    }
+}
+
 function calculateIb(p, v, cosphi, isTri, isKva = false) {
     if (isKva) {
         // Apparent power S: cos phi already embedded, do not divide by it again
@@ -743,7 +769,7 @@ function performCalculation() {
 
                     if (tens === 'mt_media_tensione') {
                         In = 'ANSI_51';
-                        isCoordOk = true; 
+                        isCoordOk = true;
                     } else {
                         for (let val of inArray) {
                             if (val >= ib) {
@@ -764,8 +790,8 @@ function performCalculation() {
                     if (!isCoordOk) continue; // Auto-Aumento alla sezione successiva
 
                     // Verifica DV
-                    const R = paramElettrici[s].R / N; 
-                    const X = paramElettrici[s].X / N; 
+                    const R = paramElettrici[s].R / N;
+                    const X = paramElettrici[s].X / N;
 
                     const dvVolts = (k * l * ib * (R * cosphi + X * sinphi)) / 1000;
                     const dvPerc = (dvVolts / v) * 100;
@@ -815,7 +841,7 @@ function performCalculation() {
             } else if (isAutoParallel && maxN === 20) {
                 statusLabel = 'OUT_OF_SCALE';
             }
-            
+
             currentResult = { ib, iz: 0, dv: 0, status: statusLabel, section: '-' };
             setUIFatalError();
         }
@@ -847,11 +873,11 @@ function setUISuccess(r) {
     }
 
     const multiplier = r.inputs.isTri ? '3x' : '';
-    const displaySec = (r.n > 1) 
+    const displaySec = (r.n > 1)
         ? (r.inputs.isTri ? `${r.n}x(${multiplier}${r.section})` : `${r.n}x${r.section}`)
         : `${multiplier}${r.section}`;
     document.getElementById('res-sec').textContent = `${displaySec} mm²`;
-    
+
     // Protezione
     const protLbl = document.getElementById('res-prot-lbl');
     if (protLbl) {
@@ -877,7 +903,7 @@ function setUISuccess(r) {
 
     // Protezione Visibility Toggles for MT vs BT
     const pSysTens = r.inputs.v > 1000 ? 'MT' : 'BT'; // using voltage as proxy for MT/BT check safely from r obj
-    
+
     const formulaContainer = document.getElementById('res-formula');
     const statusMsg = document.getElementById('f-status-msg');
     const mtRelayMsg = document.getElementById('f-mt-relay-msg');
@@ -891,17 +917,17 @@ function setUISuccess(r) {
         if (resIn) resIn.textContent = `Impostazione a progetto`;
         const protLbl = document.getElementById('res-prot-lbl');
         if (protLbl) protLbl.textContent = 'Relè Programmabile';
-        
+
         let coordCheckStr = '--';
     } else {
         if (formulaContainer) formulaContainer.classList.remove('hidden');
         if (statusMsg) statusMsg.classList.remove('hidden');
         if (mtRelayMsg) mtRelayMsg.classList.add('hidden');
-        
+
         // Formula Visiva Rendering per BT
         document.getElementById('f-val-ib').textContent = r.ib.toFixed(2) + ' A';
         document.getElementById('f-val-in').textContent = r.In + ' A';
-        
+
         let effectiveIz = r.iz;
         const fLblIz = document.getElementById('f-lbl-iz');
         if (r.protType === 'fuse') {
@@ -930,7 +956,7 @@ function setUISuccess(r) {
             statusText.textContent = "Errore di coordinamento. Modificare la sezione o la protezione.";
         }
     }
-    
+
     if (window.lucide) lucide.createIcons();
 
     // Griglia Valori Standard
@@ -992,9 +1018,9 @@ function setUIFatalError() {
         if (window.lucide) lucide.createIcons();
     }
 
-    document.getElementById('res-sec').textContent = 
-        currentResult.status === 'OUT_OF_SCALE' ? "Fuori Scala" : 
-        currentResult.status === 'SECTION_INSUFFICIENT' ? "Sezione Insuff." : "Non Trovato";
+    document.getElementById('res-sec').textContent =
+        currentResult.status === 'OUT_OF_SCALE' ? "Fuori Scala" :
+            currentResult.status === 'SECTION_INSUFFICIENT' ? "Sezione Insuff." : "Non Trovato";
     const valIb = document.getElementById('res-ib');
     if (valIb) valIb.textContent = currentResult.ib.toFixed(2) + ' A';
     const valIz = document.getElementById('res-iz');
@@ -1030,10 +1056,10 @@ function setUIError() {
 function pvShowCompatError(title, msg) {
     const errCard = document.getElementById('pv-compat-error-card');
     const titleEl = document.getElementById('pv-compat-error-title');
-    const msgEl   = document.getElementById('pv-compat-error-msg');
+    const msgEl = document.getElementById('pv-compat-error-msg');
     if (!errCard) return;
     if (titleEl) titleEl.textContent = title;
-    if (msgEl)   msgEl.textContent   = msg;
+    if (msgEl) msgEl.textContent = msg;
     errCard.classList.remove('hidden');
     if (window.lucide) lucide.createIcons();
 }
@@ -1047,28 +1073,31 @@ function calculatePV() {
     try {
         // ── Read inputs ──────────────────────────────────────────────
         const vmaxdc = parseFloat(document.getElementById('in-pv-vmaxdc')?.value);
-        const nmppt  = parseInt(document.getElementById('in-pv-nmppt')?.value)  || 1;
-        const imax   = parseFloat(document.getElementById('in-pv-imax')?.value);
-        const mpptmin= parseFloat(document.getElementById('in-pv-mpptmin')?.value);
-        const mpptmax= parseFloat(document.getElementById('in-pv-mpptmax')?.value);
+        const nmppt = parseInt(document.getElementById('in-pv-nmppt')?.value) || 1;
+        const imax = parseFloat(document.getElementById('in-pv-imax')?.value);
+        const mpptmin = parseFloat(document.getElementById('in-pv-mpptmin')?.value);
+        const mpptmax = parseFloat(document.getElementById('in-pv-mpptmax')?.value);
         const pmaxcc = parseFloat(document.getElementById('in-pv-pmaxcc')?.value);
-        const pac    = parseFloat(document.getElementById('in-pv-pac')?.value);
+        const pac = parseFloat(document.getElementById('in-pv-pac')?.value);
 
-        const wp   = parseFloat(document.getElementById('in-pv-wp')?.value);
+        const wp = parseFloat(document.getElementById('in-pv-wp')?.value);
         const beta = parseFloat(document.getElementById('in-pv-beta')?.value);
         const gammaRaw = document.getElementById('in-pv-gamma')?.value;
         const gamma = (gammaRaw !== '' && gammaRaw !== null && !isNaN(parseFloat(gammaRaw)))
-                      ? parseFloat(gammaRaw) : null;
-        const voc  = parseFloat(document.getElementById('in-pv-voc')?.value);
-        const isc  = parseFloat(document.getElementById('in-pv-isc')?.value);
-        const vmp  = parseFloat(document.getElementById('in-pv-vmp')?.value);
+            ? parseFloat(gammaRaw) : null;
+        const voc = parseFloat(document.getElementById('in-pv-voc')?.value);
+        const isc = parseFloat(document.getElementById('in-pv-isc')?.value);
+        const vmp = parseFloat(document.getElementById('in-pv-vmp')?.value);
 
-        const ntot  = parseInt(document.getElementById('in-pv-ntot')?.value);
+        const ntot = parseInt(document.getElementById('in-pv-ntot')?.value);
         const lcavo = parseFloat(document.getElementById('in-pv-lcavo')?.value);
-        const tmin  = parseFloat(document.getElementById('in-pv-tmin')?.value);
-        const tmax  = parseFloat(document.getElementById('in-pv-tmax')?.value);
+        const tmin = parseFloat(document.getElementById('in-pv-tmin')?.value);
+        const tmax = parseFloat(document.getElementById('in-pv-tmax')?.value);
 
         if ([vmaxdc, nmppt, imax, mpptmin, mpptmax, pmaxcc, wp, beta, voc, isc, vmp, ntot, lcavo, tmin, tmax].some(isNaN)) return;
+
+        const protVal = parseFloat(document.getElementById('in-pv-prot-val')?.value) || 25;
+        const protType = document.getElementById('in-pv-prot-type')?.value || 'fuse';
 
         // ── Temperature corrections (STC = 25°C) ────────────────────
         const TSTC = 25;
@@ -1078,7 +1107,7 @@ function calculatePV() {
 
         // ── String range limits ──────────────────────────────────────
         const nmax_vmaxdc = Math.floor(vmaxdc / voc_tmin);
-        const nmax_mppt   = Math.floor(mpptmax / vmp_tmax);
+        const nmax_mppt = Math.floor(mpptmax / vmp_tmax);
         const nmax = Math.min(nmax_vmaxdc, nmax_mppt);
         const nmin = Math.ceil(mpptmin / vmp_tmax);
 
@@ -1174,21 +1203,39 @@ function calculatePV() {
 
         // ── DC Cable Sizing (max ΔV = 1.5%) ────────────────────────
         const vstr_max = mpptConfig[0].moduli * vmp; // STC for cable design
-        const maxDvVolts   = 0.015 * vstr_max;
+        const maxDvVolts = 0.015 * vstr_max;
         const requiredSection = (2 * lcavo * isc) / (56 * maxDvVolts);
         const commercialSections = [4, 6, 10, 16, 25, 35];
         let cableSec = commercialSections.find(s => s >= requiredSection);
         if (!cableSec) cableSec = '>35';
+
+        // Portata Iz (estratta da tabelle tipiche per cavo solare in aria)
+        const izTable = { 4: 44, 6: 57, 10: 79, 16: 107, 25: 142, 35: 175 };
+        let izCavo = izTable[cableSec] || '--';
+
         let dvReal = 0;
         if (typeof cableSec === 'number') {
             const dvRealVolts = (2 * lcavo * isc) / (56 * cableSec);
             dvReal = (dvRealVolts / vstr_max) * 100;
         }
 
-        // ── Fuse: 1.5 · Isc (per spec) ──────────────────────────────
-        const fuseMin = 1.5 * isc;
+        // ── Fuse Sizing (CEI Normative) ──────────────────────────────
+        const isc_max = isc * 1.25;
+        const fuseMin = 1.1 * isc_max;
+        const fuseMax = (protType === 'fuse') ? protVal : (protVal * 1.35);
+
         const commercialFuses = [10, 12, 15, 20, 25, 30, 32, 40];
-        let fuse = commercialFuses.find(f => f >= fuseMin) || parseFloat(fuseMin.toFixed(1));
+        let fuse = commercialFuses.find(f => f >= fuseMin);
+
+        // Validation against I_fuse_max
+        if (!fuse || fuse > fuseMax) {
+            pvShowCompatError(
+                '🛡️ Errore Protezione CC',
+                `Il fusibile minimo richiesto dalla norma (${fuse || fuseMin.toFixed(1)}A) supera il limite massimo sopportabile dal modulo (${fuseMax.toFixed(1)}A). Verificare i dati.`
+            );
+            pvResetResultCard();
+            return;
+        }
 
         // ── SPD: Ucpv > Voc_max della stringa più lunga ──────────────
         // v_sez = tensione massima assoluta = Voc@Tmin della stringa più lunga
@@ -1202,31 +1249,38 @@ function calculatePV() {
         };
         const dcac = dcacFn();
 
-        // ── Save result ──────────────────────────────────────────────
-        const isRangeValid = nmax >= nmin;
-        currentResult = {
-            type: 'pv',
-            status: 'OK',
-            nmin, nmax, ntot, nmppt, mpptConfig, isAsymmetric,
-            voc_tmin, voc_tmax, vmp_tmax,
-            ptot, pmaxcc, dcac,
-            cableSec, dvReal, fuse, v_sez, isc,
-            // Compatibility check results (for PDF)
-            compatTests: {
-                overCurrent:   { pass: true, label: 'Over-Current (Isc ≤ Imax)'      },
-                overVoltage:   { pass: true, label: 'Over-Voltage a Tmin'             },
-                underVoltage:  { pass: true, label: 'Under-Voltage a Tmax (MPPT)'    },
-                powerSat:      { pass: true, label: 'Power Saturation (Ptot ≤ Pmaxcc)'},
-                asymmetry:     { pass: true, label: 'Asimmetria Fattibile'            }
-            },
-            inputs: { vmaxdc, nmppt, mpptmin, mpptmax, imax, pmaxcc, pac, wp, beta, gamma, voc, isc, vmp, ntot, lcavo, tmin, tmax }
-        };
+            // Capture component names if selected via presets
+            const invSel = document.getElementById('sel-preset-inverter');
+            const panSel = document.getElementById('sel-preset-pannello');
+            const inverterName = (invSel && invSel.value) ? invSel.options[invSel.selectedIndex].text : null;
+            const moduleName = (panSel && panSel.value) ? panSel.options[panSel.selectedIndex].text : null;
+
+            currentResult = {
+                type: 'pv',
+                status: 'OK',
+                nmin, nmax, ntot, nmppt, mpptConfig, isAsymmetric,
+                voc_tmin, voc_tmax, vmp_tmax,
+                ptot, pmaxcc, dcac,
+                cableSec, dvReal, fuse, v_sez, isc, izCavo,
+                // Compatibility check results (for PDF)
+                compatTests: {
+                    overCurrent: { pass: true, label: 'Over-Current (Isc ≤ Imax)' },
+                    overVoltage: { pass: true, label: 'Over-Voltage a Tmin' },
+                    underVoltage: { pass: true, label: 'Under-Voltage a Tmax (MPPT)' },
+                    powerSat: { pass: true, label: 'Power Saturation (Ptot ≤ Pmaxcc)' },
+                    asymmetry: { pass: true, label: 'Asimmetria Fattibile' }
+                },
+                inputs: { 
+                    vmaxdc, nmppt, mpptmin, mpptmax, imax, pmaxcc, pac, wp, beta, gamma, voc, isc, vmp, ntot, lcavo, tmin, tmax, protVal, protType,
+                    inverterName, moduleName
+                }
+            };
 
         // ── Update UI ────────────────────────────────────────────────
-        const resData    = document.getElementById('pv-res-data');
-        const placeholder= document.getElementById('pv-res-placeholder');
-        const card       = document.getElementById('pv-result-card');
-        const warning    = document.getElementById('pv-res-warning');
+        const resData = document.getElementById('pv-res-data');
+        const placeholder = document.getElementById('pv-res-placeholder');
+        const card = document.getElementById('pv-result-card');
+        const warning = document.getElementById('pv-res-warning');
         if (!resData || !placeholder || !card) return;
 
         placeholder.classList.add('hidden');
@@ -1236,43 +1290,35 @@ function calculatePV() {
 
         // Dati generali
         const kwpStr = ptot.toFixed(2) + ' kWp';
-        document.getElementById('pv-res-kwp').textContent  = kwpStr;
-        const kwp2El = document.getElementById('pv-res-kwp2');
-        if (kwp2El) kwp2El.textContent = kwpStr;
+        document.getElementById('pv-res-kwp').textContent = kwpStr;
         const dcacEl = document.getElementById('pv-res-dcac');
         if (dcacEl) dcacEl.textContent = dcac;
 
         // Architecture summary
         document.getElementById('pv-res-arch-text').textContent = isAsymmetric
-            ? `${nmppt} MPPT · Configurazione Asimmetrica`
-            : `${nmppt} MPPT · ${mpptConfig[0].moduli} moduli/stringa · Simmetrica`;
+            ? `${nmppt} MPPT · Asimmetrica`
+            : `${nmppt} MPPT · ${mpptConfig[0].moduli} mod/str · Simmetrica`;
 
         // Thermal limits grid
-        document.getElementById('pv-res-range').textContent    = `${nmin} → ${nmax} mod.`;
+        document.getElementById('pv-res-range').textContent = `${nmin} → ${nmax} mod.`;
         document.getElementById('pv-res-voc-tmin').textContent = voc_tmin.toFixed(2) + ' V';
         document.getElementById('pv-res-vmp-tmax').textContent = vmp_tmax.toFixed(2) + ' V';
         const statusEl = document.getElementById('pv-res-status');
-        if (statusEl) {
-            statusEl.textContent = 'VERIFICATA ✓';
-            statusEl.style.color = 'var(--success)';
-        }
+        if (statusEl) statusEl.textContent = 'SUPERATA ✓';
 
         // Quadro CC
-        document.getElementById('pv-res-cavo').textContent    = cableSec + ' mm² (Cu)';
-        document.getElementById('pv-res-dv-cavo').textContent = (typeof cableSec === 'number') ? dvReal.toFixed(2) + ' %' : '-- %';
-        document.getElementById('pv-res-fuse').textContent    = fuse + ' A · 1000V DC';
-        document.getElementById('pv-res-sez').textContent     = '> ' + v_sez.toFixed(0) + ' V';
+        document.getElementById('pv-res-cavo').textContent = `${cableSec} mm² | Iz: ${izCavo} A | Caduta: ${dvReal.toFixed(2)}%`;
+        document.getElementById('pv-res-fuse').textContent = `${fuse}A gPV`;
+        document.getElementById('pv-res-sez').textContent = '> ' + v_sez.toFixed(0) + ' V';
         document.getElementById('pv-res-isc-str').textContent = isc.toFixed(2) + ' A';
-        document.getElementById('pv-res-vstr').textContent    = vstr_max.toFixed(1) + ' V';
+        document.getElementById('pv-res-vstr').textContent = vstr_max.toFixed(1) + ' V';
 
         // Dynamic MPPT rows — one row per MPPT with Voc_max detail
         const dynContainer = document.getElementById('pv-mppt-dynamic-rows');
         if (dynContainer) {
             dynContainer.innerHTML = '';
             mpptConfig.forEach(cfg => {
-                const badge = isAsymmetric
-                    ? `MPPT ${cfg.mppt}`
-                    : (cfg.mppt === 1 ? 'SIMMETRICA' : `MPPT ${cfg.mppt}`);
+                const badge = `MPPT ${cfg.mppt}`;
                 const bgColor = isAsymmetric ? 'var(--primary)' : 'var(--success)';
                 dynContainer.innerHTML += `
                     <div class="mppt-row">
@@ -1307,9 +1353,9 @@ function calculatePV() {
 
 // Reset result card when a blocking error is shown
 function pvResetResultCard() {
-    const resData    = document.getElementById('pv-res-data');
-    const placeholder= document.getElementById('pv-res-placeholder');
-    const card       = document.getElementById('pv-result-card');
+    const resData = document.getElementById('pv-res-data');
+    const placeholder = document.getElementById('pv-res-placeholder');
+    const card = document.getElementById('pv-result-card');
     if (resData) resData.classList.add('hidden');
     if (placeholder) placeholder.classList.add('hidden');
     if (card) card.classList.remove('ok', 'error');
@@ -1330,7 +1376,7 @@ function getPresets(type) {
     try {
         const data = localStorage.getItem(`preset_${type}`);
         return data ? JSON.parse(data) : [];
-    } catch(e) { return []; }
+    } catch (e) { return []; }
 }
 
 function savePresets(type, presets) {
@@ -1340,7 +1386,7 @@ function savePresets(type, presets) {
 function initPresets() {
     const invSelect = document.getElementById('sel-preset-inverter');
     const panSelect = document.getElementById('sel-preset-pannello');
-    
+
     // Populate Inverter
     if (invSelect) {
         invSelect.innerHTML = '<option value="">-- Carica preset --</option>';
@@ -1356,7 +1402,7 @@ function initPresets() {
         // IF we attach it in initUI. Wait, no, we attach to the select element.
         // It's safer to attach the listener in initUI, but wait, the innerHTML doesn't destroy the select element itself, just the options.
     }
-    
+
     // Populate Pannello
     if (panSelect) {
         panSelect.innerHTML = '<option value="">-- Carica preset --</option>';
@@ -1372,7 +1418,7 @@ function initPresets() {
 function salvaPresetInverter() {
     const name = prompt("Inserisci nome modello Inverter:");
     if (!name || name.trim() === '') return;
-    
+
     const preset = {
         id: 'inv_' + Date.now(),
         name: name.trim(),
@@ -1384,7 +1430,7 @@ function salvaPresetInverter() {
         pac: document.getElementById('in-pv-pac')?.value,
         nmppt: document.getElementById('in-pv-nmppt')?.value
     };
-    
+
     const presets = getPresets('inverter');
     presets.push(preset);
     savePresets('inverter', presets);
@@ -1396,7 +1442,7 @@ function salvaPresetInverter() {
 function salvaPresetPannello() {
     const name = prompt("Inserisci nome modello Pannello FV:");
     if (!name || name.trim() === '') return;
-    
+
     const preset = {
         id: 'pan_' + Date.now(),
         name: name.trim(),
@@ -1405,9 +1451,11 @@ function salvaPresetPannello() {
         vmp: document.getElementById('in-pv-vmp')?.value,
         isc: document.getElementById('in-pv-isc')?.value,
         beta: document.getElementById('in-pv-beta')?.value,
-        gamma: document.getElementById('in-pv-gamma')?.value
+        gamma: document.getElementById('in-pv-gamma')?.value,
+        protVal: document.getElementById('in-pv-prot-val')?.value,
+        protType: document.getElementById('in-pv-prot-type')?.value
     };
-    
+
     const presets = getPresets('pannello');
     presets.push(preset);
     savePresets('pannello', presets);
@@ -1421,7 +1469,7 @@ function loadPreset(type, id) {
     const presets = getPresets(type);
     const preset = presets.find(p => p.id === id);
     if (!preset) return;
-    
+
     if (type === 'inverter') {
         if (preset.vmaxdc !== undefined) document.getElementById('in-pv-vmaxdc').value = preset.vmaxdc;
         if (preset.mpptmin !== undefined) document.getElementById('in-pv-mpptmin').value = preset.mpptmin;
@@ -1437,8 +1485,14 @@ function loadPreset(type, id) {
         if (preset.isc !== undefined) document.getElementById('in-pv-isc').value = preset.isc;
         if (preset.beta !== undefined) document.getElementById('in-pv-beta').value = preset.beta;
         if (preset.gamma !== undefined) document.getElementById('in-pv-gamma').value = preset.gamma;
+        if (preset.protVal !== undefined) document.getElementById('in-pv-prot-val').value = preset.protVal;
+        if (preset.protType !== undefined) {
+            document.getElementById('in-pv-prot-type').value = preset.protType;
+            syncCustomSelects('in-pv-prot-type');
+        }
     }
     validateForm('sec-fotovoltaico');
+    if (typeof calculatePV === 'function') calculatePV();
 }
 
 function deletePreset(type) {
@@ -1449,7 +1503,7 @@ function deletePreset(type) {
         return;
     }
     if (!confirm("Eliminare questo preset?")) return;
-    
+
     let presets = getPresets(type);
     presets = presets.filter(p => p.id !== id);
     savePresets(type, presets);
@@ -1503,7 +1557,7 @@ function calculateQuickDV() {
     resEl.textContent = dvPerc.toFixed(2) + ' %';
     const isError = dvPerc > 4;
     resEl.style.color = isError ? "var(--error)" : "var(--success)";
-    
+
     if (card) {
         card.classList.remove('ok', 'error');
         card.classList.add(isError ? 'error' : 'ok');
@@ -1531,16 +1585,16 @@ function showToast(message) {
 
 
 // pvInputIds is accessible here because it is defined inside initUI() – replicate the list
-const PV_INPUT_IDS_ALL = ['in-pv-vmaxdc', 'in-pv-nmppt', 'in-pv-imax', 'in-pv-mpptmin', 'in-pv-mpptmax', 'in-pv-pmaxcc', 'in-pv-wp', 'in-pv-beta', 'in-pv-voc', 'in-pv-isc', 'in-pv-vmp', 'in-pv-ntot', 'in-pv-lcavo', 'in-pv-tmin', 'in-pv-tmax', 'in-pv-gamma'];
+const PV_INPUT_IDS_ALL = ['in-pv-vmaxdc', 'in-pv-nmppt', 'in-pv-imax', 'in-pv-mpptmin', 'in-pv-mpptmax', 'in-pv-pmaxcc', 'in-pv-pac', 'in-pv-wp', 'in-pv-beta', 'in-pv-voc', 'in-pv-isc', 'in-pv-vmp', 'in-pv-ntot', 'in-pv-lcavo', 'in-pv-tmin', 'in-pv-tmax', 'in-pv-gamma', 'in-pv-prot-val', 'in-pv-prot-type'];
 
 function buildUiState() {
     const uiState = {};
-    const selects  = ['sel-iso', 'sel-posa', 'sel-temp', 'sel-group', 'sel-depth', 'sel-res', 'sel-n-cavi', 'sel-unit-potenza'];
+    const selects = ['sel-iso', 'sel-posa', 'sel-temp', 'sel-group', 'sel-depth', 'sel-res', 'sel-n-cavi', 'sel-unit-potenza'];
     const inputIds = ['in-v', 'in-l', 'in-load', 'in-cosphi', 'in-dvmax', ...PV_INPUT_IDS_ALL];
-    const pills    = ['pill-sys', 'pill-input-type', 'pill-tens', 'pill-mat'];
-    selects.forEach(id  => { const el = document.getElementById(id); if (el) uiState[id] = el.value; });
+    const pills = ['pill-sys', 'pill-input-type', 'pill-tens', 'pill-mat'];
+    selects.forEach(id => { const el = document.getElementById(id); if (el) uiState[id] = el.value; });
     inputIds.forEach(id => { const el = document.getElementById(id); if (el) uiState[id] = el.value; });
-    pills.forEach(id    => { const el = document.querySelector(`#${id} .active`); if (el) uiState[id] = el.getAttribute('data-val'); });
+    pills.forEach(id => { const el = document.querySelector(`#${id} .active`); if (el) uiState[id] = el.getAttribute('data-val'); });
     uiState['ch-auto-parallel'] = document.getElementById('ch-auto-parallel')?.checked || false;
     return uiState;
 }
@@ -1679,19 +1733,23 @@ function loadArchive() {
             const displaySec = (nCavi > 1)
                 ? ((p.data.inputs && p.data.inputs.isTri) ? `${nCavi}x(${multiplier}${p.data.section})` : `${nCavi}x${p.data.section}`)
                 : `${multiplier}${p.data.section}`;
-            const detailStr = `Sec: ${displaySec} mm² | Iz: ${(p.data.iz||0).toFixed(1)} A`;
+            const detailStr = `Sezione: ${displaySec} mm² | Iz: ${(p.data.iz || 0).toFixed(1)} A`;
             listCavi.innerHTML += `
-            <div class="archive-item">
-                <div class="archive-item-content" onclick="restoreProject(${p.id})">
-                    <div>
-                        <div class="archive-info-title"><i data-lucide="cable" style="width: 16px; height: 16px; margin-right: 6px; display: inline-block; color:var(--primary);"></i>${p.name || 'Senza Nome'}</div>
-                        <div class="archive-info-sub">${p.date || ''} | ${detailStr}</div>
+            <div class="archive-card cable">
+                <div class="archive-card-header" onclick="restoreProject(${p.id})">
+                    <div class="archive-card-icon"><i data-lucide="cable"></i></div>
+                    <div class="archive-card-info">
+                        <div class="archive-info-title">${p.name || 'Senza Nome'}</div>
+                        <div class="archive-info-sub">
+                            <div><i data-lucide="calendar" style="width:12px;height:12px;display:inline;margin-right:4px;"></i>${p.date || ''}</div>
+                            <div style="margin-top:2px; color:var(--accent-cable); font-weight:700;">${detailStr}</div>
+                        </div>
                     </div>
                 </div>
-                <div style="display:flex; gap:8px;">
-                     <button class="icon-btn" style="color:var(--success)" onclick="restoreProject(${p.id})" title="Ripristina nel Calcolatore"><i data-lucide="refresh-cw"></i></button>
-                     <button class="icon-btn" style="color:var(--primary)" onclick="exportPDF(${p.id})" title="Esporta PDF"><i data-lucide="download"></i></button>
-                     <button class="icon-btn text-error" onclick="deleteProj(${p.id})" title="Elimina"><i data-lucide="x"></i></button>
+                <div class="archive-card-actions">
+                     <button class="icon-btn" style="color:var(--success)" onclick="restoreProject(${p.id})" title="Apri"><i data-lucide="external-link"></i></button>
+                     <button class="icon-btn" style="color:var(--primary)" onclick="exportPDF(${p.id})" title="PDF"><i data-lucide="file-text"></i></button>
+                     <button class="icon-btn text-error" onclick="deleteProj(${p.id})" title="Elimina"><i data-lucide="trash-2"></i></button>
                 </div>
             </div>`;
         });
@@ -1701,18 +1759,23 @@ function loadArchive() {
         listFv.innerHTML = createEmpty('Nessun progetto Fotovoltaico.');
     } else {
         projFv.reverse().forEach(p => {
-             listFv.innerHTML += `
-            <div class="archive-item">
-                <div class="archive-item-content" onclick="restoreProject(${p.id})">
-                    <div>
-                        <div class="archive-info-title"><i data-lucide="sun" style="width: 16px; height: 16px; margin-right: 6px; display: inline-block; color:var(--primary);"></i>${p.name || 'Senza Nome'}</div>
-                        <div class="archive-info-sub">${p.date || ''} | PV String Range: ${p.data.nmin} - ${p.data.nmax} Moduli</div>
+            const detailStr = `Range Moduli: ${p.data.nmin} - ${p.data.nmax}`;
+            listFv.innerHTML += `
+            <div class="archive-card fv">
+                <div class="archive-card-header" onclick="restoreProject(${p.id})">
+                    <div class="archive-card-icon"><i data-lucide="sun"></i></div>
+                    <div class="archive-card-info">
+                        <div class="archive-info-title">${p.name || 'Senza Nome'}</div>
+                        <div class="archive-info-sub">
+                            <div><i data-lucide="calendar" style="width:12px;height:12px;display:inline;margin-right:4px;"></i>${p.date || ''}</div>
+                            <div style="margin-top:2px; color:var(--accent-fv); font-weight:700;">${detailStr}</div>
+                        </div>
                     </div>
                 </div>
-                <div style="display:flex; gap:8px;">
-                     <button class="icon-btn" style="color:var(--success)" onclick="restoreProject(${p.id})" title="Ripristina nel Calcolatore"><i data-lucide="refresh-cw"></i></button>
-                     <button class="icon-btn" style="color:var(--primary)" onclick="exportPDF(${p.id})" title="Esporta PDF"><i data-lucide="download"></i></button>
-                     <button class="icon-btn text-error" onclick="deleteProj(${p.id})" title="Elimina"><i data-lucide="x"></i></button>
+                <div class="archive-card-actions">
+                     <button class="icon-btn" style="color:var(--success)" onclick="restoreProject(${p.id})" title="Apri"><i data-lucide="external-link"></i></button>
+                     <button class="icon-btn" style="color:var(--primary)" onclick="exportPDF(${p.id})" title="PDF"><i data-lucide="file-text"></i></button>
+                     <button class="icon-btn text-error" onclick="deleteProj(${p.id})" title="Elimina"><i data-lucide="trash-2"></i></button>
                 </div>
             </div>`;
         });
@@ -1721,35 +1784,39 @@ function loadArchive() {
     // -- Render Preset Componenti --
     const presetInv = getPresets('inverter');
     const presetPan = getPresets('pannello');
-    
+
     if (presetInv.length === 0 && presetPan.length === 0) {
         listPreset.innerHTML = createEmpty('Nessun preset personalizzato.');
     } else {
         presetInv.forEach(inv => {
             listPreset.innerHTML += `
-            <div class="archive-item">
-                <div class="archive-item-content" onclick="restorePresetInv('${inv.id}')">
-                    <div>
-                        <div class="archive-info-title"><i data-lucide="cpu" style="width: 16px; height: 16px; margin-right: 6px; display: inline-block; color:var(--primary);"></i>${inv.name}</div>
-                        <div class="archive-info-sub">Inverter Preset</div>
+            <div class="archive-card preset">
+                <div class="archive-card-header" onclick="restorePresetInv('${inv.id}')">
+                    <div class="archive-card-icon"><i data-lucide="cpu"></i></div>
+                    <div class="archive-card-info">
+                        <div class="archive-info-title">${inv.name}</div>
+                        <div class="archive-info-sub">Preset Inverter</div>
                     </div>
                 </div>
-                <div style="display:flex; gap:8px;">
-                     <button class="icon-btn text-error" onclick="deletePresetGlobal('${inv.id}')" title="Elimina"><i data-lucide="x"></i></button>
+                <div class="archive-card-actions">
+                     <button class="icon-btn" style="color:var(--accent-archive)" onclick="restorePresetInv('${inv.id}')" title="Usa"><i data-lucide="plus-circle"></i></button>
+                     <button class="icon-btn text-error" onclick="deletePresetGlobal('${inv.id}')" title="Elimina"><i data-lucide="trash-2"></i></button>
                 </div>
             </div>`;
         });
         presetPan.forEach(pan => {
-             listPreset.innerHTML += `
-            <div class="archive-item">
-                <div class="archive-item-content" onclick="restorePresetPan('${pan.id}')">
-                    <div>
-                        <div class="archive-info-title"><i data-lucide="layout-grid" style="width: 16px; height: 16px; margin-right: 6px; display: inline-block; color:var(--primary);"></i>${pan.name}</div>
-                        <div class="archive-info-sub">Pannello Preset</div>
+            listPreset.innerHTML += `
+            <div class="archive-card preset">
+                <div class="archive-card-header" onclick="restorePresetPan('${pan.id}')">
+                    <div class="archive-card-icon"><i data-lucide="layout-grid"></i></div>
+                    <div class="archive-card-info">
+                        <div class="archive-info-title">${pan.name}</div>
+                        <div class="archive-info-sub">Preset Pannello</div>
                     </div>
                 </div>
-                <div style="display:flex; gap:8px;">
-                     <button class="icon-btn text-error" onclick="deletePresetGlobal('${pan.id}')" title="Elimina"><i data-lucide="x"></i></button>
+                <div class="archive-card-actions">
+                     <button class="icon-btn" style="color:var(--accent-archive)" onclick="restorePresetPan('${pan.id}')" title="Usa"><i data-lucide="plus-circle"></i></button>
+                     <button class="icon-btn text-error" onclick="deletePresetGlobal('${pan.id}')" title="Elimina"><i data-lucide="trash-2"></i></button>
                 </div>
             </div>`;
         });
@@ -1782,7 +1849,7 @@ function restoreProject(id) {
         ['pill-sys', 'pill-input-type', 'pill-tens', 'pill-mat'].forEach(pillId => {
             if (ui[pillId]) {
                 const group = document.getElementById(pillId);
-                if(group) {
+                if (group) {
                     group.querySelectorAll('.pill').forEach(btn => btn.classList.remove('active'));
                     const targetBtn = group.querySelector(`[data-val="${ui[pillId]}"]`);
                     if (targetBtn) targetBtn.classList.add('active');
@@ -1806,10 +1873,11 @@ function restoreProject(id) {
         const el = document.getElementById(key);
         if (el && el.tagName === 'INPUT' && el.type !== 'checkbox') {
             el.value = ui[key];
-            if(isPv) el.dispatchEvent(new Event('input', { bubbles: true })); // Trigger event for validation later
+            if (isPv) el.dispatchEvent(new Event('input', { bubbles: true })); // Trigger event for validation later
         } else if (el && el.tagName === 'SELECT') {
             el.value = ui[key];
-            if(isPv) el.dispatchEvent(new Event('input', { bubbles: true })); 
+            if (el.classList.contains('upgraded')) syncCustomSelects(key);
+            if (isPv) el.dispatchEvent(new Event('input', { bubbles: true }));
         } else if (key === 'ch-auto-parallel') {
             const check = document.getElementById('ch-auto-parallel');
             if (check) { check.checked = ui[key]; check.dispatchEvent(new Event('change')); }
@@ -1817,7 +1885,7 @@ function restoreProject(id) {
     });
 
     // Phase 4: Validate and recalculate
-    if(isPv) {
+    if (isPv) {
         calculatePV();
     } else {
         validateForm('sec-calc');
@@ -1841,10 +1909,10 @@ function deleteProj(id) {
 }
 
 // Global scope window wrappers for HTML inline onclick within Preset Archive lists
-window.restorePresetInv = function(id) { loadPreset('inverter', id); navigateTo('sec-fotovoltaico'); showToast("Preset Inverter caricato!"); };
-window.restorePresetPan = function(id) { loadPreset('pannello', id); navigateTo('sec-fotovoltaico'); showToast("Preset Pannello caricato!"); };
-window.deletePresetGlobal = function(id) {
-    if(id.startsWith('inv_')) {
+window.restorePresetInv = function (id) { loadPreset('inverter', id); navigateTo('sec-fotovoltaico'); showToast("Preset Inverter caricato!"); };
+window.restorePresetPan = function (id) { loadPreset('pannello', id); navigateTo('sec-fotovoltaico'); showToast("Preset Pannello caricato!"); };
+window.deletePresetGlobal = function (id) {
+    if (id.startsWith('inv_')) {
         let arr = getPresets('inverter').filter(x => x.id !== id);
         savePresets('inverter', arr);
     } else {
@@ -1906,7 +1974,7 @@ function exportArchivioJSON(type) {
         let allProjs = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
         if (type === 'cavi') exportData = allProjs.filter(p => !p.data?.type || p.data.type !== 'pv');
         else if (type === 'fv') exportData = allProjs.filter(p => p.data?.type === 'pv');
-        
+
         if (!exportData || exportData.length === 0) {
             alert("Nessun progetto da esportare per questa categoria."); return;
         }
@@ -1929,7 +1997,7 @@ function importArchivioJSON(type, inputElement) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         try {
             const imported = JSON.parse(e.target.result);
             if (type === 'preset') {
@@ -2001,7 +2069,7 @@ function generateActivePdf() {
         data: currentResult, // Note: currentResult has all needed data
         uiState: uiState
     };
-    
+
     // Polyfill inputs if missing (since active result object might map them differently)
     if (!tempProj.data.inputs) {
         tempProj.data.inputs = {
@@ -2020,341 +2088,469 @@ function generateActivePdf() {
 
 function generaPDF(proj) {
     try {
-    // Support both window.jspdf (UMD) namespace
-    const jsPDFLib = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : (window.jsPDF || null);
-    if (!jsPDFLib) {
-        alert('Libreria jsPDF non disponibile. Controlla la connessione e ricarica la pagina.');
-        return;
-    }
-    const doc = new jsPDFLib();
-
-    // -- Header --
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(0, 0, 0);
-    doc.text("ElectroSuite v4.0 - Report di Calcolo Elettrico", 15, 20);
-
-    // -- Data/Time --
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    
-    // Splitting date and project name onto separate lines for better readability
-    // Left side:
-    doc.text(`Data: ${proj.date}`, 15, 27);
-    // Right side:
-    const projText = `Progetto: ${proj.name}`;
-    const projWidth = doc.getTextWidth(projText);
-    doc.text(projText, 195 - projWidth, 27);
-
-    // -- Horizontal Line --
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.5);
-    doc.line(15, 32, 195, 32);
-
-    let startY = 40;
-
-    // --- ENCODING HELPER ---
-    // Fixes jsPDF problems with Unicode logic / Math symbols
-    const safeStr = (str) => {
-        if (str === null || str === undefined) return '';
-        return String(str)
-            .replace(/≤/g, '<=')
-            .replace(/≥/g, '>=')
-            .replace(/ΔV/g, 'Delta V');
-            // Nota: ° viene preservato (solitamente supportato se Helvetica windows-1252 style, altrimenti farebbe replace(/°C/g, ' gradi C'))
-    };
-
-    if (proj.data.type === 'pv') {
-        const d = proj.data;
-        // Tabella 1: Dati Inverter & Modulo
-        doc.autoTable({
-            startY: startY,
-            head: [['Parametro', 'Valore', 'Unità']],
-            body: [
-                ['V max DC (Inverter)',           d.inputs.vmaxdc,             'V'],
-                ['Range MPPT – Min / Max',        `${d.inputs.mpptmin} – ${d.inputs.mpptmax}`, 'V'],
-                ['Corrente Max MPPT (Imax)',       d.inputs.imax,               'A'],
-                ['Potenza Max Ingresso CC',        d.inputs.pmaxcc,             'kW'],
-                ...(d.inputs.pac != null && !isNaN(d.inputs.pac) ? [['Potenza Nominale CA', d.inputs.pac, 'kW']] : []),
-                ['N° MPPT',                       d.inputs.nmppt,               '-'],
-                ['Potenza Modulo (Wp)',            d.inputs.wp,                 'Wp'],
-                ['Voc / Vmp Pannello',            `${d.inputs.voc} V / ${d.inputs.vmp} V`, '-'],
-                ['Isc Pannello',                  d.inputs.isc,                'A'],
-                ['Coeff. Temp. β (Voc)',          d.inputs.beta,               '%/°C'],
-                ...(d.inputs.gamma != null ? [['Coeff. Temp. γ (Pmax)', d.inputs.gamma, '%/°C']] : []),
-                ['Temperature Progetto',          `Tmin: ${d.inputs.tmin}°C – Tmax: ${d.inputs.tmax}°C`, '-'],
-                ['N° Moduli Totali',              d.inputs.ntot,               'mod.'],
-                ['Lunghezza Cavi CC',             d.inputs.lcavo,              'm'],
-            ],
-            theme: 'striped',
-            headStyles: { fillColor: [15, 76, 129] },
-            margin: { left: 15, right: 15 }
-        });
-
-        // Tabella 2: Dichiarazione di Compatibilità Elettrica
-        doc.autoTable({
-            startY: doc.lastAutoTable.finalY + 10,
-            head: [['Verifica di Compatibilità Elettrica', 'Esito', 'Dettaglio']],
-            body: [
-                ['Over-Current (Isc <= Imax MPPT)',
-                 'SUPERATA',
-                 safeStr(`Isc = ${d.inputs.isc} A <= Imax = ${d.inputs.imax} A`)],
-                ['Over-Voltage a Tmin (Vstringa <= Vmax DC)',
-                 'SUPERATA',
-                 safeStr(`Vstr_max = ${(d.mpptConfig[0].vsez).toFixed(0)} V <= ${d.inputs.vmaxdc} V`)],
-                ['Under-Voltage a Tmax (Vstringa >= Vmppt_min)',
-                 'SUPERATA',
-                 safeStr(`Vstr_min = ${(d.mpptConfig[d.mpptConfig.length-1].vstr_hot != null ? d.mpptConfig[d.mpptConfig.length-1].vstr_hot : d.mpptConfig[d.mpptConfig.length-1].moduli * d.vmp_tmax).toFixed(0)} V >= ${d.inputs.mpptmin} V`)],
-                ['Power Saturation (Ptot <= Pmaxcc)',
-                 'SUPERATA',
-                 safeStr(`Ptot = ${d.ptot.toFixed(2)} kW <= Pmaxcc = ${d.inputs.pmaxcc} kW`)],
-                ['Asimmetria Fattibile (tutti nei limiti)',
-                 'SUPERATA',
-                 d.isAsymmetric ? `Distribuzione asimmetrica verificata` : 'Configurazione simmetrica']
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [25, 129, 85] },
-            bodyStyles: { fontSize: 9 },
-            columnStyles: {
-                0: { cellWidth: 70 },
-                1: { fontStyle: 'bold', textColor: [25, 129, 85], cellWidth: 30 },
-                2: { cellWidth: 80 }
-            },
-            styles: { overflow: 'linebreak', cellWidth: 'wrap' },
-            margin: { left: 15, right: 15 }
-        });
-
-        // Tabella 3: Dettaglio MPPT
-        const mpptRows = d.mpptConfig.map(cfg => [
-            `MPPT ${cfg.mppt}`,
-            `1 stringa da ${cfg.moduli} moduli`,
-            `${cfg.vsez != null ? cfg.vsez.toFixed(0) : '--'} V`,
-            `${(cfg.moduli * (d.inputs ? d.inputs.vmp : 0)).toFixed(0)} V`
-        ]);
-        doc.autoTable({
-            startY: doc.lastAutoTable.finalY + 10,
-            head: [['Ingresso', 'Configurazione', 'Voc_max (a Tmin)', 'Vmp (STC)']],
-            body: mpptRows,
-            theme: 'striped',
-            headStyles: { fillColor: [230, 126, 34] },
-            margin: { left: 15, right: 15 }
-        });
-
-        // Tabella 4: Dimensionamento Quadro CC
-        doc.autoTable({
-            startY: doc.lastAutoTable.finalY + 10,
-            head: [['Elemento Quadro CC', 'Specifica']],
-            body: [
-                ['Potenza Totale Generatore',         `${d.ptot.toFixed(2)} kWp (DC/AC = ${d.dcac || '--'})`],
-                [safeStr('Cavo Solare (ΔV <= 1.5%)'), `${d.cableSec} mm2 - Delta V = ${typeof d.cableSec === 'number' ? d.dvReal.toFixed(2) : '--'} %`],
-                ['Fusibile Stringa (1.5 * Isc)',      `${d.fuse} A - 1000V DC`],
-                ['SPD (Ucpv > Voc_max stringa)',      `> ${d.v_sez.toFixed(0)} V`],
-                ['Isc per Stringa',                   `${d.isc.toFixed(2)} A`],
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [80, 40, 120] },
-            styles: { overflow: 'linebreak' },
-            margin: { left: 15, right: 15 }
-        });
-
-        if (d.isAsymmetric) {
-            let asymY = doc.lastAutoTable.finalY + 6;
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'italic');
-            doc.setTextColor(80, 80, 80);
-            doc.text(`Nota: Configurazione asimmetrica – i ${d.inputs.ntot} moduli non si dividono equamente su ${d.inputs.nmppt} MPPT.`, 15, asymY);
+        // Support both window.jspdf (UMD) namespace
+        const jsPDFLib = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : (window.jsPDF || null);
+        if (!jsPDFLib) {
+            alert('Libreria jsPDF non disponibile. Controlla la connessione e ricarica la pagina.');
+            return;
         }
+        const doc = new jsPDFLib();
 
-    } else {
-        const d = proj.data;
-        const paramIns = proj.data.inputs || {};
-        const pSys = paramIns.isTri ? 'Trifase' : 'Monofase';
-        // Unit of measurement for power (kw | kva) — defaults to kw for older saved projects
-        const unitaPotenza = d.unitaPotenza || (proj.uiState && proj.uiState['sel-unit-potenza']) || 'kw';
-        const isKva = unitaPotenza === 'kva';
-        const unitLabel = isKva ? 'kVA' : 'kW';
-        // Dynamic formula string for Ib
-        let pSysForm;
-        if (isKva) {
-            pSysForm = paramIns.isTri
-                ? 'Ib = S / (sqrt(3) * V)  [potenza apparente, cos(phi) non applicato]'
-                : 'Ib = S / V  [potenza apparente, cos(phi) non applicato]';
-        } else {
-            pSysForm = paramIns.isTri
-                ? 'Ib = P / (sqrt(3) * V * cos(phi))'
-                : 'Ib = P / (V * cos(phi))';
-        }
-
-        // Tabella 1: Dati di Sistema
-        doc.autoTable({
-            startY: startY,
-            head: [['Parametro', 'Valore', 'Unità']],
-            body: [
-                ['Architettura del sistema', pSys, '-'],
-                ['Tensione di Esercizio', paramIns.v ? paramIns.v : '--', 'V'],
-                ['Lunghezza Tratta', paramIns.l ? paramIns.l : '--', 'm'],
-                ...(paramIns.load != null ? [['Potenza / Carico Immesso', paramIns.load, unitLabel]] : []),
-                ...(!isKva ? [['Fattore di Potenza cos(phi)', paramIns.cosphi != null ? paramIns.cosphi : '--', '-']] : [])
-            ],
-            theme: 'striped',
-            headStyles: { fillColor: [15, 76, 129] },
-            margin: { left: 15, right: 15 }
-        });
-
-        // Tabella 2: Posa
-        const posaVal = paramIns.posa || '';
-        let rawPosaDesc = proj.uiState && proj.uiState['sel-posa-text'] ? proj.uiState['sel-posa-text'] : formatPosaName(posaVal);
-        // Clean HTML/Formatting from posa description
-        let posaDesc = rawPosaDesc.replace(/<[^>]*>?/gm, '').trim();
-        let matDesc = paramIns.mat === 'rame' ? 'Rame' : 'Alluminio';
-        let isoDesc = paramIns.iso === 'pvc_70C' ? 'PVC (70°C)' : 'EPR / XLPE (90°C)';
-
-        doc.autoTable({
-            startY: doc.lastAutoTable.finalY + 10,
-            head: [['Dettaglio Costruttivo', 'Specifica']],
-            body: [
-                ['Metodo di Posa', posaDesc],
-                ['Materiale Conduttore', matDesc],
-                ['Materiale Isolante', isoDesc]
-            ],
-            theme: 'striped',
-            headStyles: { fillColor: [15, 76, 129] },
-            styles: { overflow: 'linebreak' },
-            margin: { left: 15, right: 15 }
-        });
-
-        // Tabella 3: Fattori K — dinamica per tipo posa
-        const isInterrata = posaVal && posaVal.includes('interrato');
-        const kArr = [];
-        if (d.kFactors) {
-            const tempCond = proj.uiState ? (proj.uiState['sel-temp'] + '°C') : '--';
-            const groupCond = proj.uiState ? ('Gruppo ' + proj.uiState['sel-group']) : '--';
-
-            kArr.push(['K1', 'Temperatura ambiente', tempCond, typeof d.kFactors.k1 === 'number' ? d.kFactors.k1.toFixed(3) : '--']);
-            kArr.push(['K2', 'Raggruppamento circuiti', groupCond, typeof d.kFactors.k2 === 'number' ? d.kFactors.k2.toFixed(3) : '--']);
-
-            if (isInterrata) {
-                const depthCond = proj.uiState ? (proj.uiState['sel-depth'] + ' m') : '--';
-                const resCond = proj.uiState ? (proj.uiState['sel-res'] + ' K\u00B7m/W') : '--';
-                kArr.push(['K3', 'Profondità di posa', depthCond, typeof d.kFactors.k3 === 'number' ? d.kFactors.k3.toFixed(3) : '--']);
-                kArr.push(['K4', 'Resistività termica terreno', resCond, typeof d.kFactors.k4 === 'number' ? d.kFactors.k4.toFixed(3) : '--']);
-            }
-
-            kArr.push([{ content: 'Ktot', styles: { fontStyle: 'bold' } }, { content: isInterrata ? 'Coefficiente Globale (K1*K2*K3*K4)' : 'Coefficiente Globale (K1*K2)', colSpan: 2, styles: { fontStyle: 'bold' } }, { content: typeof d.kFactors.ktot === 'number' ? d.kFactors.ktot.toFixed(3) : '--', styles: { fontStyle: 'bold' } }]);
-        } else {
-            kArr.push(['K Globale', 'Fattori Standard', '--', '1.000']);
-        }
-
-        doc.autoTable({
-            startY: doc.lastAutoTable.finalY + 10,
-            head: [['Fattore', 'Significato', 'Valore Impostato', 'Valore K']],
-            body: kArr,
-            theme: 'striped',
-            headStyles: { fillColor: [15, 76, 129] },
-            styles: { overflow: 'linebreak' },
-            margin: { left: 15, right: 15 }
-        });
-
-        // Tabella 4: Risultati finali
-        const multiplier = paramIns.isTri ? '3x' : '';
-        const nCavi = d.n || 1;
-        const displaySec = (nCavi > 1)
-            ? (paramIns.isTri ? `${nCavi}x(${multiplier}${d.section})` : `${nCavi}x${d.section}`)
-            : `${multiplier}${d.section}`;
-        const sezioneStr = displaySec + ' mm2';
-        
-        let valIn = (d.In !== undefined && d.In !== null) ? d.In : (d.in || null);
-        let inStr = valIn != null ? valIn + ' A' : 'N/A';
-        let coordCheckStr = 'N/A';
-        let protTypeStr = 'N/A'; // declared here to avoid ReferenceError
-
-        // MT Bypass override
-        const pSysTens = (paramIns.v || 0) > 1000 ? 'MT' : 'BT';
-        if (pSysTens === 'MT') {
-            protTypeStr = 'Relè Programmabile (ANSI 51)';
-            inStr = 'Impostazione a progetto';
-            coordCheckStr = 'Verifica portata termica Iz >= Ib superata.';
-        } else {
-            protTypeStr = d.protType === 'mcb' ? 'Interruttore (MCB)' : (d.protType === 'fuse' ? 'Fusibile gG' : 'N/A');
-            if (d.protType === 'mcb') {
-                const ibStr = typeof d.ib === 'number' ? d.ib.toFixed(2) : 'N/A';
-                const izStr = typeof d.iz === 'number' ? d.iz.toFixed(2) : 'N/A';
-                coordCheckStr = `Verificato: Ib <= In <= Iz (${ibStr} <= ${valIn != null ? valIn : 'N/A'} <= ${izStr})`;
-            } else if (d.protType === 'fuse') {
-                const ibStr = typeof d.ib === 'number' ? d.ib.toFixed(2) : 'N/A';
-                const reducedIz = typeof d.iz === 'number' ? (0.9 * d.iz).toFixed(2) : 'N/A';
-                coordCheckStr = `Verificato: Ib <= In <= 0.9*Iz (${ibStr} <= ${valIn != null ? valIn : 'N/A'} <= ${reducedIz})`;
-            }
-        }
-
-        doc.autoTable({
-            startY: doc.lastAutoTable.finalY + 10,
-            head: [['Esito Calcolo e Coordinamento', 'Valore']],
-            body: [
-                ['Corrente di Impiego (Ib)', typeof d.ib === 'number' ? d.ib.toFixed(2) + ' A' : '--'],
-                ['Portata Corretta del Cavo (Iz)', typeof d.iz === 'number' ? d.iz.toFixed(2) + ' A' : '--'],
-                ['Caduta di Tensione (Delta V)', typeof d.dv === 'number' ? d.dv.toFixed(2) + ' %' : '--'],
-                ['Sezione Commerciale Adottata', sezioneStr],
-                ['Dispositivo di Protezione', protTypeStr],
-                ['Taglia (In)', inStr],
-                ['Esito Coordinamento', coordCheckStr]
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [10, 50, 85] },
-            margin: { left: 15, right: 15 },
-            styles: { font: "helvetica" }
-        });
-
-        // Metodologia e Formule
-        let formulasY = doc.lastAutoTable.finalY + 15;
-        
-        // Add page if methodology doesn't fit
-        if (formulasY > 250) {
-            doc.addPage();
-            formulasY = 20;
-        }
-
-        doc.setFontSize(14);
-        doc.setTextColor(15, 76, 129);
+        // -- Header --
         doc.setFont("helvetica", "bold");
-        doc.text("Metodologia e Formule di Calcolo", 15, formulasY);
-        
-        doc.setFontSize(10);
-        doc.setTextColor(80, 80, 80);
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 0);
+        doc.text("ElectroSuite v4.0 - Report di Calcolo Elettrico", 15, 20);
+
+        // -- Data/Time --
         doc.setFont("helvetica", "normal");
-        
-        const maxWidth = doc.internal.pageSize.getWidth() - 28; // 14px margins each side
-        const formulaLines = [
-            `1. Corrente d'impiego: ${pSysForm}`,
-            `2. Portata corretta alla posa: Iz = I0 * Ktot * N`,
-            `3. Caduta di Tensione: Delta V [%] = 100 * (K * L * Ib * ((R/N) * cos(phi) + (X/N) * sin(phi))) / V`,
-            `4. Coordinamento CEI 64-8 (Solo BT): Ib <= In <= Iz (oppure <= 0.9 * Iz per fusibili).`
-        ];
-        
-        let yPos = formulasY + 8;
-        formulaLines.forEach(line => {
-            const splitLines = doc.splitTextToSize(line, maxWidth);
-            doc.text(splitLines, 14, yPos);
-            yPos += splitLines.length * 6; // altezzaRiga = 6
-        });
-        
-        if (d.hasAutoIncreased) {
-             doc.setFont("helvetica", "italic");
-             doc.setTextColor(230, 81, 0); // Orange highlight
-             const noteText = "NOTA: La sezione del cavo è stata aumentata automaticamente per garantire il coordinamento con la taglia commerciale d'interruttore selezionata.";
-             const splitNote = doc.splitTextToSize(noteText, maxWidth);
-             doc.text(splitNote, 14, yPos + 2);
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+
+        // Splitting date and project name onto separate lines for better readability
+        // Left side:
+        doc.text(`Data: ${proj.date}`, 15, 27);
+        // Right side:
+        const projText = `Progetto: ${proj.name}`;
+        const projWidth = doc.getTextWidth(projText);
+        doc.text(projText, 195 - projWidth, 27);
+
+        // -- Horizontal Line --
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.5);
+        doc.line(15, 32, 195, 32);
+
+        let startY = 40;
+
+        // --- ENCODING HELPER ---
+        // Fixes jsPDF problems with Unicode logic / Math symbols
+        const safeStr = (str) => {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/≤/g, '<=')
+                .replace(/≥/g, '>=')
+                .replace(/ΔV/g, 'Delta V');
+            // Nota: ° viene preservato (solitamente supportato se Helvetica windows-1252 style, altrimenti farebbe replace(/°C/g, ' gradi C'))
+        };
+
+        if (proj.data.type === 'pv') {
+            const d = proj.data;
+
+            // Tabella 1: Dati Inverter
+            const invBody = [];
+            if (d.inputs.inverterName) invBody.push(['Modello Selezionato', d.inputs.inverterName.toUpperCase(), '-']);
+            invBody.push(
+                ['Tensione Massima DC (Vmaxdc)', d.inputs.vmaxdc, 'V'],
+                ['Range MPPT Operativo (Min/Max)', `${d.inputs.mpptmin} – ${d.inputs.mpptmax}`, 'V'],
+                ['Corrente Massima MPPT (Imax)', d.inputs.imax, 'A'],
+                ['Potenza Massima Ingresso CC', d.inputs.pmaxcc, 'kW'],
+                ...(d.inputs.pac != null && !isNaN(d.inputs.pac) ? [['Potenza Nominale CA', d.inputs.pac, 'kW']] : []),
+                ['Numero di MPPT indipendenti', d.inputs.nmppt, '-']
+            );
+
+            doc.autoTable({
+                startY: startY,
+                head: [['Componente: Inverter', 'Valore', 'Unità']],
+                body: invBody,
+                theme: 'striped',
+                headStyles: { fillColor: [15, 76, 129], fontSize: 10 },
+                styles: { fontSize: 9 },
+                margin: { left: 15, right: 15 }
+            });
+
+            // Tabella 2: Dati Modulo Fotovoltaico
+            const modBody = [];
+            if (d.inputs.moduleName) modBody.push(['Modello Selezionato', d.inputs.moduleName.toUpperCase(), '-']);
+            modBody.push(
+                ['Potenza di Picco (Wp)', d.inputs.wp, 'Wp'],
+                ['Tensione Voc / Vmp STC', `${d.inputs.voc} V / ${d.inputs.vmp} V`, '-'],
+                ['Corrente Isc STC', d.inputs.isc, 'A'],
+                ['Coeff. Temperatura Beta (Voc)', d.inputs.beta, '%/°C'],
+                ['Protezione Sottesa (Max)', `${d.inputs.protVal} A (${d.inputs.protType === 'fuse' ? 'Fusibile' : 'OCPR'})`, '-'],
+                ...(d.inputs.gamma != null ? [['Coeff. Temp. Gamma (Pmax)', d.inputs.gamma, '%/°C']] : []),
+                ['Parametri di Temperatura', `Tmin: ${d.inputs.tmin}°C – Tmax: ${d.inputs.tmax}°C`, '-'],
+                ['Numero Moduli Totali', d.inputs.ntot, 'mod.']
+            );
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 8,
+                head: [['Componente: Modulo FV', 'Valore', 'Unità']],
+                body: modBody,
+                theme: 'striped',
+                headStyles: { fillColor: [41, 128, 185], fontSize: 10 },
+                styles: { fontSize: 9 },
+                margin: { left: 15, right: 15 }
+            });
+
+            // Tabella 3: Configurazione MPPT e Stringhe
+            const mpptRows = d.mpptConfig.map(cfg => [
+                `Ingresso MPPT ${cfg.mppt}`,
+                `${cfg.moduli} moduli in serie`,
+                `${cfg.vsez != null ? cfg.vsez.toFixed(1) : '--'} V`,
+                `${(cfg.moduli * (d.inputs ? d.inputs.vmp : 0)).toFixed(1)} V`
+            ]);
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 8,
+                head: [['Ingresso', 'Configurazione', 'Voc Max (Tmin)', 'Vmp STC']],
+                body: mpptRows,
+                theme: 'striped',
+                headStyles: { fillColor: [230, 126, 34] },
+                margin: { left: 15, right: 15 }
+            });
+
+            // Tabella 4: Dimensionamento Quadro CC (Protezioni e Cavi)
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 8,
+                head: [['Elemento Quadro CC', 'Specifica Tecnica']],
+                body: [
+                    ['Sezione Cavo Solare CC', `${d.cableSec} mm²`],
+                    ['Portata Cavo alla Posa (Iz)', `${d.izCavo} A`],
+                    ['Caduta di Tensione (Delta V%)', `${typeof d.cableSec === 'number' ? d.dvReal.toFixed(2) : '--'} %`],
+                    ['Protezione di Stringa (Fusibile)', `${d.fuse}A gPV`],
+                    ['Scaricatore Sovratensioni (SPD)', `Ucpv >= ${d.v_sez.toFixed(0)} V`],
+                    ['Corrente di Corto Circuito (Isc)', `${d.isc.toFixed(2)} A`],
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [142, 68, 173] },
+                styles: { overflow: 'linebreak' },
+                margin: { left: 15, right: 15 }
+            });
+
+            // Tabella 5: Verifiche di Compatibilità Elettrica
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 8,
+                head: [['Verifica Normativa', 'Esito', 'Dettaglio Tecnico']],
+                body: [
+                    ['Over-Current (Isc <= Imax MPPT)', 'SUPERATA', safeStr(`Isc = ${d.inputs.isc} A <= Imax = ${d.inputs.imax} A`)],
+                    ['Over-Voltage a Tmin (Vstr <= Vmax)', 'SUPERATA', safeStr(`Vstr_max = ${d.v_sez.toFixed(1)} V <= ${d.inputs.vmaxdc} V`)],
+                    ['Under-Voltage a Tmax (Vstr >= Vmppt_min)', 'SUPERATA', safeStr(`Vstr_min = ${(d.mpptConfig[d.mpptConfig.length - 1].vstr_hot != null ? d.mpptConfig[d.mpptConfig.length - 1].vstr_hot : d.mpptConfig[d.mpptConfig.length - 1].moduli * d.vmp_tmax).toFixed(1)} V >= ${d.inputs.mpptmin} V`)],
+                    ['Power Saturation (Ptot <= Pmaxcc)', 'SUPERATA', safeStr(`Ptot = ${d.ptot.toFixed(2)} kW <= Pmaxcc = ${d.inputs.pmaxcc} kW`)],
+                    ['Fattibilità Configurazione', 'SUPERATA', d.isAsymmetric ? 'Distribuzione asimmetrica verificata' : 'Simmetrica']
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [39, 174, 96], fontSize: 10 },
+                bodyStyles: { fontSize: 8.5 },
+                columnStyles: {
+                    0: { cellWidth: 70 },
+                    1: { fontStyle: 'bold', textColor: [39, 174, 96], cellWidth: 25, halign: 'center' },
+                    2: { cellWidth: 85 }
+                },
+                margin: { left: 15, right: 15 }
+            });
+
+            if (d.isAsymmetric) {
+                let asymY = doc.lastAutoTable.finalY + 6;
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'italic');
+                doc.setTextColor(80, 80, 80);
+                doc.text(`Nota: Configurazione asimmetrica – i ${d.inputs.ntot} moduli non si dividono equamente su ${d.inputs.nmppt} MPPT.`, 15, asymY);
+            }
+
+            // --- NUOVA PAGINA: RELAZIONE TECNICA E METODOLOGIA (PV) ---
+            doc.addPage();
+            let yPos = 30;
+            const marginX = 15;
+            const maxW = 180;
+
+            // Header Bar for the Title
+            doc.setFillColor(15, 76, 129); // Primary Blue
+            doc.rect(marginX, yPos - 12, maxW, 15, 'F');
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(13);
+            doc.setTextColor(255, 255, 255); // White
+            doc.text("RELAZIONE TECNICA: METODI DI CALCOLO E NORMATIVA", marginX + 4, yPos - 2);
+
+            yPos += 15;
+
+            const sections = [
+                {
+                    title: "1. Dimensionamento Cavi Solari (Lato Corrente Continua)",
+                    text: "Le sezioni dei cavi solari sono calcolate per garantire che la portata Iz, opportunamente declassata in base ai fattori di correzione per temperatura e tipo di posa (Norme CEI-UNEL e CEI 64-8), sia sempre superiore alla corrente massima della stringa. La caduta di tensione percentuale (Delta V%) sul tratto in Corrente Continua e' verificata tramite la formula: Delta V = (2 · L · I · rho) / S, dove rho e' la resistivita' del rame alla temperatura di esercizio, L e' la lunghezza della linea e I e' la corrente di impiego."
+                },
+                {
+                    title: "2. Protezione contro le Sovracorrenti (Fusibili Lato CC)",
+                    text: "Il dimensionamento delle protezioni di stringa (fusibili gPV) rispetta la Norma CEI 64-8, art. 712. Per configurazioni con 1 o 2 stringhe in parallelo per singolo MPPT indipendente, la protezione non e' normativamente richiesta in quanto le correnti inverse non possono superare la portata del modulo. Per 3 o piu' stringhe in parallelo, la taglia nominale del fusibile (In) e' calcolata per rispettare il range: 1.1 · Isc_max <= In <= Limite Modulo. Isc_max e' pari alla Isc in STC maggiorata del 25% (Isc_max = Isc · 1.25). Il 'Limite Modulo' corrisponde alla Taglia Max Fusibile dichiarata dal costruttore, oppure al valore della Corrente Inversa Massima (I_MOD_MAX_OCPR) moltiplicata per 1.35."
+                },
+                {
+                    title: "3. Protezione contro le Sovratensioni (SPD Lato CC)",
+                    text: "La scelta dello Scaricatore di Sovratensione (SPD) lato continua viene effettuata verificando che la tensione massima continuativa dell'SPD (Ucpv) sia maggiore o uguale alla massima tensione a vuoto generata dalla stringa (Voc_max). La Voc_max viene calcolata partendo dalla Voc in condizioni STC e applicando il coefficiente di temperatura del pannello (Beta) riferito alla temperatura minima di progetto dell'impianto (es. -10 gradi C)."
+                },
+                {
+                    title: "4. Riferimenti Normativi Principali",
+                    text: "- CEI 64-8/7: Impianti elettrici utilizzatori - Sezione 712 (Sistemi solari fotovoltaici).\n- CEI EN 62446: Sistemi fotovoltaici - Requisiti per le prove, la documentazione e la manutenzione.\n- Guide CEI 82-25: Guida alla realizzazione di sistemi fotovoltaici."
+                }
+            ];
+
+            sections.forEach(s => {
+                // Check for page overflow BEFORE section title
+                if (yPos + 35 > 280) {
+                    doc.addPage();
+                    yPos = 25;
+                }
+
+                // Section Divider Line
+                doc.setDrawColor(200, 200, 200);
+                doc.setLineWidth(0.3);
+                doc.line(marginX, yPos - 1, marginX + maxW, yPos - 1);
+
+                // Section Title
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(11);
+                doc.setTextColor(15, 76, 129);
+                doc.text(s.title, marginX, yPos + 6);
+                yPos += 13;
+
+                // Section Body
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9.5);
+                doc.setTextColor(50, 50, 50);
+                const lines = doc.splitTextToSize(s.text, maxW - 10);
+
+                // Check for page overflow BEFORE body text
+                if (yPos + (lines.length * 6) > 285) {
+                    doc.addPage();
+                    yPos = 25;
+                }
+
+                // Text with slight indent
+                doc.text(lines, marginX + 4, yPos);
+                yPos += (lines.length * 5.8) + 12; // Adjusted line height and block spacing
+            });
+
+        } else {
+            const d = proj.data;
+            const paramIns = proj.data.inputs || {};
+            const pSys = paramIns.isTri ? 'Trifase' : 'Monofase';
+            // Unit of measurement for power (kw | kva) — defaults to kw for older saved projects
+            const unitaPotenza = d.unitaPotenza || (proj.uiState && proj.uiState['sel-unit-potenza']) || 'kw';
+            const isKva = unitaPotenza === 'kva';
+            const unitLabel = isKva ? 'kVA' : 'kW';
+            // Dynamic formula string for Ib
+            let pSysForm;
+            if (isKva) {
+                pSysForm = paramIns.isTri
+                    ? 'Ib = S / (sqrt(3) * V)  [potenza apparente, cos(phi) non applicato]'
+                    : 'Ib = S / V  [potenza apparente, cos(phi) non applicato]';
+            } else {
+                pSysForm = paramIns.isTri
+                    ? 'Ib = P / (sqrt(3) * V * cos(phi))'
+                    : 'Ib = P / (V * cos(phi))';
+            }
+
+            // Tabella 1: Dati di Sistema
+            doc.autoTable({
+                startY: startY,
+                head: [['Parametro', 'Valore', 'Unità']],
+                body: [
+                    ['Architettura del sistema', pSys, '-'],
+                    ['Tensione di Esercizio', paramIns.v ? paramIns.v : '--', 'V'],
+                    ['Lunghezza Tratta', paramIns.l ? paramIns.l : '--', 'm'],
+                    ...(paramIns.load != null ? [['Potenza / Carico Immesso', paramIns.load, unitLabel]] : []),
+                    ...(!isKva ? [['Fattore di Potenza cos(phi)', paramIns.cosphi != null ? paramIns.cosphi : '--', '-']] : [])
+                ],
+                theme: 'striped',
+                headStyles: { fillColor: [15, 76, 129] },
+                margin: { left: 15, right: 15 }
+            });
+
+            // Tabella 2: Posa
+            const posaVal = paramIns.posa || '';
+            let rawPosaDesc = proj.uiState && proj.uiState['sel-posa-text'] ? proj.uiState['sel-posa-text'] : formatPosaName(posaVal);
+            // Clean HTML/Formatting from posa description
+            let posaDesc = rawPosaDesc.replace(/<[^>]*>?/gm, '').trim();
+            let matDesc = paramIns.mat === 'rame' ? 'Rame' : 'Alluminio';
+            let isoDesc = paramIns.iso === 'pvc_70C' ? 'PVC (70°C)' : 'EPR / XLPE (90°C)';
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 10,
+                head: [['Dettaglio Costruttivo', 'Specifica']],
+                body: [
+                    ['Metodo di Posa', posaDesc],
+                    ['Materiale Conduttore', matDesc],
+                    ['Materiale Isolante', isoDesc]
+                ],
+                theme: 'striped',
+                headStyles: { fillColor: [41, 128, 185], fontSize: 10 },
+                styles: { overflow: 'linebreak', fontSize: 9 },
+                margin: { left: 15, right: 15 }
+            });
+
+            // Tabella 3: Fattori K — dinamica per tipo posa
+            const isInterrata = posaVal && posaVal.includes('interrato');
+            const kArr = [];
+            if (d.kFactors) {
+                const tempCond = proj.uiState ? (proj.uiState['sel-temp'] + '°C') : '--';
+                const groupCond = proj.uiState ? ('Gruppo ' + proj.uiState['sel-group']) : '--';
+
+                kArr.push(['K1', 'Temperatura ambiente', tempCond, typeof d.kFactors.k1 === 'number' ? d.kFactors.k1.toFixed(3) : '--']);
+                kArr.push(['K2', 'Raggruppamento circuiti', groupCond, typeof d.kFactors.k2 === 'number' ? d.kFactors.k2.toFixed(3) : '--']);
+
+                if (isInterrata) {
+                    const depthCond = proj.uiState ? (proj.uiState['sel-depth'] + ' m') : '--';
+                    const resCond = proj.uiState ? (proj.uiState['sel-res'] + ' K\u00B7m/W') : '--';
+                    kArr.push(['K3', 'Profondità di posa', depthCond, typeof d.kFactors.k3 === 'number' ? d.kFactors.k3.toFixed(3) : '--']);
+                    kArr.push(['K4', 'Resistività termica terreno', resCond, typeof d.kFactors.k4 === 'number' ? d.kFactors.k4.toFixed(3) : '--']);
+                }
+
+                kArr.push([{ content: 'Ktot', styles: { fontStyle: 'bold' } }, { content: isInterrata ? 'Coefficiente Globale (K1*K2*K3*K4)' : 'Coefficiente Globale (K1*K2)', colSpan: 2, styles: { fontStyle: 'bold' } }, { content: typeof d.kFactors.ktot === 'number' ? d.kFactors.ktot.toFixed(3) : '--', styles: { fontStyle: 'bold' } }]);
+            } else {
+                kArr.push(['K Globale', 'Fattori Standard', '--', '1.000']);
+            }
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 10,
+                head: [['Fattore', 'Significato', 'Valore Impostato', 'Valore K']],
+                body: kArr,
+                theme: 'striped',
+                headStyles: { fillColor: [230, 126, 34], fontSize: 10 },
+                styles: { overflow: 'linebreak', fontSize: 9 },
+                margin: { left: 15, right: 15 }
+            });
+
+            // Tabella 4: Risultati finali
+            const multiplier = paramIns.isTri ? '3x' : '';
+            const nCavi = d.n || 1;
+            const displaySec = (nCavi > 1)
+                ? (paramIns.isTri ? `${nCavi}x(${multiplier}${d.section})` : `${nCavi}x${d.section}`)
+                : `${multiplier}${d.section}`;
+            const sezioneStr = displaySec + ' mm2';
+
+            let valIn = (d.In !== undefined && d.In !== null) ? d.In : (d.in || null);
+            let inStr = valIn != null ? valIn + ' A' : 'N/A';
+            let coordCheckStr = 'N/A';
+            let protTypeStr = 'N/A'; // declared here to avoid ReferenceError
+
+            // MT Bypass override
+            const pSysTens = (paramIns.v || 0) > 1000 ? 'MT' : 'BT';
+            if (pSysTens === 'MT') {
+                protTypeStr = 'Relè Programmabile (ANSI 51)';
+                inStr = 'Impostazione a progetto';
+                coordCheckStr = 'Verifica portata termica Iz >= Ib superata.';
+            } else {
+                protTypeStr = d.protType === 'mcb' ? 'Interruttore (MCB)' : (d.protType === 'fuse' ? 'Fusibile gG' : 'N/A');
+                if (d.protType === 'mcb') {
+                    const ibStr = typeof d.ib === 'number' ? d.ib.toFixed(2) : 'N/A';
+                    const izStr = typeof d.iz === 'number' ? d.iz.toFixed(2) : 'N/A';
+                    coordCheckStr = `Verificato: Ib <= In <= Iz (${ibStr} <= ${valIn != null ? valIn : 'N/A'} <= ${izStr})`;
+                } else if (d.protType === 'fuse') {
+                    const ibStr = typeof d.ib === 'number' ? d.ib.toFixed(2) : 'N/A';
+                    const reducedIz = typeof d.iz === 'number' ? (0.9 * d.iz).toFixed(2) : 'N/A';
+                    coordCheckStr = `Verificato: Ib <= In <= 0.9*Iz (${ibStr} <= ${valIn != null ? valIn : 'N/A'} <= ${reducedIz})`;
+                }
+            }
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 10,
+                head: [['Esito Calcolo e Coordinamento', 'Valore']],
+                body: [
+                    ['Corrente di Impiego (Ib)', typeof d.ib === 'number' ? d.ib.toFixed(2) + ' A' : '--'],
+                    ['Portata Corretta del Cavo (Iz)', typeof d.iz === 'number' ? d.iz.toFixed(2) + ' A' : '--'],
+                    ['Caduta di Tensione (Delta V)', typeof d.dv === 'number' ? d.dv.toFixed(2) + ' %' : '--'],
+                    ['Sezione Commerciale Adottata', sezioneStr],
+                    ['Dispositivo di Protezione', protTypeStr],
+                    ['Taglia (In)', inStr],
+                    ['Esito Coordinamento', coordCheckStr]
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [39, 174, 96], fontSize: 10 },
+                margin: { left: 15, right: 15 },
+                styles: { font: "helvetica", fontSize: 9 },
+                columnStyles: {
+                    0: { cellWidth: 80 },
+                    1: { fontStyle: 'bold' }
+                }
+            });
+
+            // --- INIZIO CODICE DA INSERIRE IN CODA ALLA GENERAZIONE DEL PDF CAVI ---
+
+            // 1. Aggiungo una nuova pagina per la metodologia
+            doc.addPage();
+
+            // Margini e impostazioni iniziali
+            const marginXMethod = 14;
+            let yPosMethod = 20;
+            const pageWidthMethod = doc.internal.pageSize.getWidth();
+            const maxWidthMethod = pageWidthMethod - (marginXMethod * 2);
+
+            // 2. Titolo della pagina
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(14);
+            doc.setTextColor(0, 95, 184); // Colore primario
+            doc.text("METODO DI CALCOLO E RIFERIMENTI NORMATIVI", marginXMethod, yPosMethod);
+            yPosMethod += 12;
+
+            // Funzione di supporto per stampare i blocchi di testo ed evitare di sbordare
+            const printSec = (title, text) => {
+                // Controllo fine pagina prima del titolo
+                if (yPosMethod > 260) {
+                    doc.addPage();
+                    yPosMethod = 20;
+                }
+                
+                // Stampa Titolo (Grassetto, Blu scuro per evidenziare)
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(11);
+                doc.setTextColor(15, 76, 129);
+                doc.text(title, marginXMethod, yPosMethod);
+                yPosMethod += 6;
+                
+                // Stampa Testo (Normale, Nero, con word-wrap)
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                doc.setTextColor(30, 30, 30);
+                
+                const textLines = doc.splitTextToSize(text, maxWidthMethod);
+                
+                // Stampiamo riga per riga per avere controllo assoluto sulla spaziatura
+                textLines.forEach(line => {
+                    if (yPosMethod > 282) {
+                        doc.addPage();
+                        yPosMethod = 20;
+                    }
+                    doc.text(line, marginXMethod, yPosMethod);
+                    yPosMethod += 5.2; // Interlinea precisa
+                });
+                
+                yPosMethod += 4; // Spazio extra tra sezioni
+            };
+
+            // 3. Definizione dei testi (ASCII safe per evitare bug di encoding jsPDF)
+            const testoPortata = "La portata nominale del cavo in aria libera o nel terreno viene determinata in base al tipo di isolante (es. PVC, EPR/XLPE) e al metodo di posa, in conformità alle tabelle CEI-UNEL 35024, CEI-UNEL 35026 e alla Norma CEI 64-8 (CEI 11-17 per la MT). Tale portata viene declassata applicando i fattori di correzione K (temperatura ambiente/terreno, raggruppamento circuiti, resistività termica, profondità di posa) per ottenere la portata effettiva di impiego (Iz). Il dimensionamento rispetta rigorosamente la condizione fondamentale: Ib <= In <= Iz, dove Ib e' la corrente di impiego e In e' la corrente nominale del dispositivo di protezione.";
+
+            const testoCaduta = "La caduta di tensione (Delta V) viene calcolata tenendo conto sia della componente resistiva che di quella reattiva della linea. Per i circuiti in corrente alternata trifase, si applica la formula: Delta V = sqrt(3) * L * I * (R * cos(phi) + X * sin(phi)). Per i circuiti in corrente alternata monofase si utilizza: Delta V = 2 * L * I * (R * cos(phi) + X * sin(phi)). Nei circuiti in corrente continua (dove la reattanza e' nulla e cos(phi) = 1), la formula si riduce a: Delta V = (2 * L * I * rho) / S. Nelle formule, R rappresenta la resistenza specifica alla temperatura di esercizio, X la reattanza specifica, L la lunghezza della linea, I la corrente di impiego, cos(phi) il fattore di potenza e rho la resistività del conduttore.";
+
+            const testoProtezioni = "Il dimensionamento del dispositivo di protezione assicura la protezione della conduttura contro il sovraccarico rispettando la condizione di funzionamento convenzionale richiesta dalla Norma CEI 64-8: If <= 1,45 * Iz (dove If e' la corrente convenzionale di intervento del dispositivo). NB: La protezione contro le correnti di cortocircuito SARA' DA VERIFICARSI SUCCESSIVAMENTE accertando che l'energia specifica passante tollerata dal cavo, definita dall'integrale di Joule (K²S²), sia strettamente superiore all'energia (I²t) lasciata passare dal dispositivo di protezione effettivamente scelto.";
+
+            // 4. Stampa effettiva delle sezioni
+            printSec("1. Calcolo della Portata (Iz) e Fattori di Correzione", testoPortata);
+            printSec("2. Verifica della Caduta di Tensione (Delta V%)", testoCaduta);
+            printSec("3. Protezione contro Sovraccarico e Cortocircuito", testoProtezioni);
+
+            if (d.hasAutoIncreased) {
+                doc.setFont("helvetica", "italic");
+                doc.setTextColor(230, 81, 0); // Arancio
+                const noteText = "NOTA: La sezione del cavo e' stata aumentata automaticamente per garantire il coordinamento con la taglia commerciale d'interruttore selezionata.";
+                const splitNote = doc.splitTextToSize(noteText, maxWidthMethod);
+                doc.text(splitNote, 14, yPosMethod + 2);
+            }
         }
-    }
 
-    // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.setFont("helvetica", "normal");
-    doc.text("Generato da ElectroSuite v4.0 - Software e Algoritmi proprietari", 105, 285, null, null, "center");
+        // -- Footer (Page numbers) --
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(8);
+            doc.setTextColor(150, 150, 150);
+            doc.text(
+                `ElectroSuite v4.0 - Pagina ${i} di ${pageCount}`,
+                105,
+                287,
+                { align: "center" }
+            );
+        }
 
-    doc.save(`ElectroSuite_${proj.name.replace(/\s+/g, '_')}.pdf`);
+        doc.save(`ElectroSuite_${proj.name.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
         console.error("Errore PDF:", error);
         alert("Errore durante la generazione del PDF: " + error.message);
@@ -2364,4 +2560,8 @@ function loadExternalScripts() {
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('service-worker.js').catch(() => { });
     }
+}
+// Initializing icons on load
+if (window.lucide) {
+    window.lucide.createIcons();
 }
