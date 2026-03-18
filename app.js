@@ -988,6 +988,8 @@ function calculatePV() {
 
         // Thermal limits grid
         document.getElementById('pv-res-range').textContent = `${currentResult.nmin} → ${currentResult.nmax} mod.`;
+        const statusEl = document.getElementById('pv-res-status');
+        if (statusEl) statusEl.textContent = 'RISPETTATA';
         
         // Calculate Voc @ Tmin and Vmp @ Tmax for the string (1 string)
         const voc_tmin_string = inputs.voc * (1 + (inputs.beta / 100) * (inputs.tmin - 25)) * currentResult.mpptConfig[0].moduli;
@@ -999,7 +1001,7 @@ function calculatePV() {
         if (vmpTmaxEl) vmpTmaxEl.textContent = `${vmp_tmax_string.toFixed(0)} V`;
 
         // Quadro CC
-        document.getElementById('pv-res-cavo').textContent = `${currentResult.cableSec} mm² | Iz: ${currentResult.izCavo} A | Caduta: ${currentResult.dvReal.toFixed(2)}%`;
+        document.getElementById('pv-res-cavo').textContent = `${currentResult.cableSec} mm² | Iz (70°C): ${currentResult.izEff.toFixed(1)} A | Caduta: ${currentResult.dvReal.toFixed(2)}%`;
         document.getElementById('pv-res-fuse').textContent = `${currentResult.fuse}A gPV`;
         document.getElementById('pv-res-sez').textContent = '> ' + currentResult.v_sez.toFixed(0) + ' V';
         document.getElementById('pv-res-isc-str').textContent = currentResult.isc.toFixed(2) + ' A';
@@ -1789,9 +1791,9 @@ function generaPDF(proj) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         const d = proj.data;
-        const brandColor = [15, 76, 129]; // Classic Blue
-        const darkBg = [33, 37, 41]; // Slate Dark
-        const accentColor = [230, 126, 34]; // Orange accent for headers
+        const brandColor = [64, 64, 64]; // Professional Antracite
+        const darkBg = [50, 50, 50]; // Graphite Dark
+        const accentColor = [100, 100, 100]; // Muted gray accent
         let startY = 75;
 
         // --- ENCODING HELPER (Moved to top) ---
@@ -1805,104 +1807,171 @@ function generaPDF(proj) {
                 .replace(/\u00b2/g, '\u00b2');
         };
 
+        // --- UNIFIED MATH RENDERING ENGINE ---
+        const mathMap = {
+            '\\Delta': { char: 'D', font: 'Symbol' },
+            '\\rho':   { char: 'r', font: 'Symbol' },
+            '\\phi':   { char: 'f', font: 'Symbol' },
+            '\\cdot':  { char: '\xb7', font: 'Symbol' }, 
+            '\\le':    { char: '\xa3', font: 'Symbol' },
+            '\\ge':    { char: '\xb3', font: 'Symbol' },
+            '\\sqrt':  { char: '\xd6', font: 'Symbol' },
+            '\\beta':  { char: 'b', font: 'Symbol' },
+            '\\cos':   { char: 'cos', font: 'helvetica' },
+            '\\sin':   { char: 'sin', font: 'helvetica' }
+        };
+
+        const parseToSegments = (str) => {
+            if (!str) return [];
+            const parts = str.split(/(\\[a-zA-Z]+|_{[^}]*})/g).filter(p => p !== "");
+            return parts.map(p => {
+                if (mathMap[p]) return { text: mathMap[p].char, font: mathMap[p].font, isCmd: true };
+                if (p.startsWith('_{') && p.endsWith('}')) {
+                    return { text: p.substring(2, p.length - 1), font: 'helvetica', isCmd: false, isSub: true };
+                }
+                return { text: p.replace(/[\{\}]/g, ''), font: 'helvetica', isCmd: false };
+            });
+        };
+
+        const getSegW = (doc, s, size) => {
+            doc.setFont(s.font, s.isCmd ? 'normal' : 'bolditalic');
+            doc.setFontSize(s.isSub ? size * 0.7 : size);
+            return doc.getTextWidth(s.text);
+        };
+
+        const getSegsW = (doc, segs, size) => {
+            let w = 0;
+            segs.forEach(s => { w += getSegW(doc, s, size); });
+            return w;
+        };
+
+        const drawSegs = (doc, segs, startX, startY, size) => {
+            let cx = startX;
+            segs.forEach(s => {
+                doc.setFont(s.font, s.isCmd ? 'normal' : 'bolditalic');
+                const sSize = s.isSub ? size * 0.7 : size;
+                // Further increased subscript offset for better clearance with descenders
+                const sY = s.isSub ? startY + 3.2 : startY;
+                doc.setFontSize(sSize);
+                doc.text(s.text, cx, sY);
+                cx += doc.getTextWidth(s.text);
+            });
+            return cx;
+        };
+
+        const drawTallBracket = (doc, type, x, y, size) => {
+            const h = size * 1.9; // Taller brackets for better coverage
+            const w = 3.0; // Slightly wider
+            const top = y - h/2 + 4.5;
+            const bot = y + h/2 - 0.5;
+            doc.setLineWidth(0.65);
+            doc.setDrawColor(0, 0, 0);
+            if (type === '[') {
+                doc.line(x + w, top, x, top);
+                doc.line(x, top, x, bot);
+                doc.line(x, bot, x + w, bot);
+                return w + 2.0;
+            } else {
+                doc.line(x - w, top, x, top);
+                doc.line(x, top, x, bot);
+                doc.line(x, bot, x - w, bot);
+                return w + 2.0;
+            }
+        };
+
         const renderMath = (doc, formula, centerX, y, fontSize) => {
-            const mathMap = {
-                '\\Delta': { char: 'D', font: 'Symbol' },
-                '\\rho':   { char: 'r', font: 'Symbol' },
-                '\\phi':   { char: 'f', font: 'Symbol' },
-                '\\cdot':  { char: '\xd7', font: 'Symbol' }, // formal multiplication '×'
-                '\\le':    { char: '\xa3', font: 'Symbol' }, // less equal '≤' (163)
-                '\\ge':    { char: '\xb3', font: 'Symbol' }, // greater equal '≥' (179)
-                '\\sqrt':  { char: '\xd6', font: 'Symbol' }, // radical '√' (214)
-                '\\cos':   { char: 'cos', font: 'helvetica' },
-                '\\sin':   { char: 'sin', font: 'helvetica' }
-            };
-
-            const parseToSegments = (str) => {
-                if (!str) return [];
-                const parts = str.split(/(\\\w+)/g);
-                return parts.filter(p => p !== "").map(p => {
-                    if (mathMap[p]) return { text: mathMap[p].char, font: mathMap[p].font, isCmd: true };
-                    // Strip grouping braces if they were left over from LaTeX commands like \sqrt{3}
-                    let clean = p.replace(/[\{\}]/g, '');
-                    return { text: clean, font: 'helvetica', isCmd: false };
-                });
-            };
-
-            const getSegsW = (segs, size) => {
-                let w = 0;
-                segs.forEach(s => {
-                    doc.setFont(s.font, s.isCmd ? 'normal' : 'bolditalic');
-                    doc.setFontSize(size);
-                    w += doc.getTextWidth(s.text);
-                });
-                return w;
-            };
-
-            const drawSegs = (segs, startX, startY, size) => {
-                let cx = startX;
-                segs.forEach(s => {
-                    doc.setFont(s.font, s.isCmd ? 'normal' : 'bolditalic');
-                    doc.setFontSize(size);
-                    doc.text(s.text, cx, startY);
-                    cx += doc.getTextWidth(s.text);
-                });
-                return cx;
-            };
-
             doc.setTextColor(0, 0, 0);
 
             if (formula.includes('\\frac')) {
-                const fracMatch = formula.match(/(.*?)\\frac\{(.*?)\}\{(.*?)\}(.*)/);
-                if (fracMatch) {
-                    const segBefore = parseToSegments(fracMatch[1]);
-                    const segNum = parseToSegments(fracMatch[2]);
-                    const segDen = parseToSegments(fracMatch[3]);
-                    const segAfter = parseToSegments(fracMatch[4]);
+                const fracIdx = formula.indexOf('\\frac');
+                const before = formula.substring(0, fracIdx);
+                
+                const getContent = (start) => {
+                    let depth = 0, res = "", i = start;
+                    while (i < formula.length) {
+                        if (formula[i] === '{') depth++;
+                        else if (formula[i] === '}') {
+                            depth--;
+                            if (depth === 0) return { text: res, end: i };
+                        }
+                        if (depth > 0 && !(depth === 1 && formula[i] === '{')) res += formula[i];
+                        i++;
+                    }
+                    return null;
+                };
 
-                    const wB = getSegsW(segBefore, fontSize);
-                    const wN = getSegsW(segNum, fontSize * 0.85);
-                    const wD = getSegsW(segDen, fontSize * 0.85);
-                    const wA = getSegsW(segAfter, fontSize);
-                    const fW = Math.max(wN, wD) + 4;
-                    
-                    let sx = centerX - ((wB + fW + wA) / 2);
-                    if (wB > 0) sx = drawSegs(segBefore, sx, y + 1.5, fontSize);
-                    
-                    const fCenterX = sx + (fW / 2);
-                    // Even tighter internal spacing
-                    drawSegs(segNum, fCenterX - (wN / 2), y - 1.8, fontSize * 0.85);
-                    drawSegs(segDen, fCenterX - (wD / 2), y + 4.5, fontSize * 0.85);
-                    
-                    doc.setLineWidth(0.4);
-                    doc.setDrawColor(0, 0, 0);
-                    doc.line(sx + 1, y, sx + fW - 1, y);
-                    
-                    if (wA > 0) drawSegs(segAfter, sx + fW + 1, y + 1.5, fontSize);
-                    return;
+                const numObj = getContent(formula.indexOf('{', fracIdx));
+                if (numObj) {
+                    const denObj = getContent(formula.indexOf('{', numObj.end + 1));
+                    if (denObj) {
+                        const after = formula.substring(denObj.end + 1);
+                        
+                        const segBefore = parseToSegments(before);
+                        const segNum = parseToSegments(numObj.text);
+                        const segDen = parseToSegments(denObj.text);
+                        const segAfter = parseToSegments(after);
+
+                        // Detection of brackets that should be tall
+                        let hasOpeningBracket = false;
+                        let innerBefore = before;
+                        if (before.trim().endsWith('[')) {
+                            hasOpeningBracket = true;
+                            const idx = before.lastIndexOf('[');
+                            innerBefore = before.substring(0, idx);
+                        }
+                        
+                        let hasClosingBracket = false;
+                        let innerAfter = after;
+                        if (after.trim().startsWith(']')) {
+                            hasClosingBracket = true;
+                            const idx = after.indexOf(']');
+                            innerAfter = after.substring(idx + 1);
+                        }
+
+                        const sInnerBefore = parseToSegments(innerBefore);
+                        const sInnerAfter = parseToSegments(innerAfter);
+
+                        const wB = getSegsW(doc, sInnerBefore, fontSize);
+                        const wN = getSegsW(doc, segNum, fontSize * 0.85);
+                        const wD = getSegsW(doc, segDen, fontSize * 0.85);
+                        const wA = getSegsW(doc, sInnerAfter, fontSize);
+                        const fW = Math.max(wN, wD) + 4;
+                        const bracketW = 4; // Width reserved for each tall bracket
+                        
+                        const totalW = wB + (hasOpeningBracket ? bracketW : 0) + fW + (hasClosingBracket ? bracketW : 0) + wA;
+                        let sx = centerX - (totalW / 2);
+                        
+                        if (wB > 0) sx = drawSegs(doc, sInnerBefore, sx, y + 1.5, fontSize);
+                        if (hasOpeningBracket) {
+                            drawTallBracket(doc, '[', sx + 0.5, y, fontSize);
+                            sx += bracketW;
+                        }
+                        
+                        const fCenterX = sx + (fW / 2);
+                        // Increased offsets to avoid clashing with fraction line
+                        drawSegs(doc, segNum, fCenterX - (wN / 2), y - 4.2, fontSize * 0.88); 
+                        drawSegs(doc, segDen, fCenterX - (wD / 2), y + 5.5, fontSize * 0.88); 
+                        
+                        doc.setLineWidth(0.45);
+                        doc.setDrawColor(0, 0, 0);
+                        doc.line(sx + 0.5, y, sx + fW - 0.5, y);
+                        sx += fW;
+
+                        if (hasClosingBracket) {
+                            drawTallBracket(doc, ']', sx + 4.5, y, fontSize);
+                            sx += bracketW;
+                        }
+                        
+                        if (wA > 0) drawSegs(doc, sInnerAfter, sx, y + 1.5, fontSize);
+                        return totalW;
+                    }
                 }
             }
 
-            if (formula.includes('_{')) {
-                const parts = formula.split(/(_{.*?})/g);
-                const allSegs = parts.map(p => {
-                    const isSub = p.startsWith('_{') && p.endsWith('}');
-                    const content = isSub ? p.substring(2, p.length - 1) : p;
-                    return { segs: parseToSegments(content), isSub: isSub };
-                });
-
-                let totalW = 0;
-                allSegs.forEach(as => totalW += getSegsW(as.segs, as.isSub ? fontSize * 0.7 : fontSize));
-
-                let sx = centerX - (totalW / 2);
-                allSegs.forEach(as => {
-                    sx = drawSegs(as.segs, sx, as.isSub ? y + 2 : y, as.isSub ? fontSize * 0.7 : fontSize);
-                });
-                return;
-            }
-
             const segs = parseToSegments(formula);
-            drawSegs(segs, centerX - (getSegsW(segs, fontSize) / 2), y, fontSize);
+            const totalWidth = getSegsW(doc, segs, fontSize);
+            drawSegs(doc, segs, centerX - (totalWidth / 2), y, fontSize);
+            return totalWidth; // Return total width for inline positioning
         };
 
         // Helper: Accented Section Title
@@ -1918,11 +1987,14 @@ function generaPDF(proj) {
 
         // Helper: Render text with centered formulas
         const renderSectionContent = (text, x, y, width) => {
-            const mathMap = {
+            const inlineMathMap = {
                 '\\Delta': { char: 'D', font: 'Symbol' },
                 '\\rho':   { char: 'r', font: 'Symbol' },
                 '\\phi':   { char: 'f', font: 'Symbol' },
-                '\\cdot':  { char: '\xd7', font: 'Symbol' }
+                '\\cdot':  { char: '\xd7', font: 'Symbol' },
+                '\\le':    { char: '\xa3', font: 'Symbol' },
+                '\\ge':    { char: '\xb3', font: 'Symbol' },
+                '\\beta':  { char: 'b', font: 'Symbol' }
             };
 
             const blocks = text.split(/(\[F\].*?\[\/F\])/g);
@@ -1932,10 +2004,9 @@ function generaPDF(proj) {
                 if (block.startsWith('[F]') && block.endsWith('[/F]')) {
                     if (currentY > 260) { doc.addPage(); currentY = 25; }
                     const formula = block.substring(3, block.length - 4);
-                    currentY += 6; // Increased space before the formula
+                    currentY += 6; 
                     renderMath(doc, formula, 105, currentY, 11.5);
-                    currentY += 12; // Increased space after the formula
-                    doc.setFont("helvetica", "normal");
+                    currentY += 12; 
                 } else {
                     const cleanBlock = block.trim();
                     if (!cleanBlock) return;
@@ -1949,73 +2020,71 @@ function generaPDF(proj) {
                             return placeholder;
                         });
 
-                        doc.setFont("helvetica", "normal");
-                        doc.setFontSize(9.5);
-                        doc.setTextColor(50, 50, 50);
-                        
-                        const lines = doc.splitTextToSize(safeStr(processedText), width);
-                        lines.forEach(line => {
-                            if (currentY > 275) { doc.addPage(); currentY = 25; doc.setFontSize(9.5); }
-                            
+                        const getFormulaWidth = (formula) => {
+                            const segs = parseToSegments(formula);
+                            return getSegsW(doc, segs, 10.5);
+                        };
+
+                        const tokens = [];
+                        const rawTokens = processedText.split(/(\s+|\uE000\d+\uE000)/g).filter(t => t !== undefined && t !== "");
+                        rawTokens.forEach(t => {
+                            if (t.startsWith('\uE000')) {
+                                const idx = parseInt(t.substring(1, t.length - 1));
+                                const fText = richParts[idx];
+                                tokens.push({ type: 'formula', text: fText, width: getFormulaWidth(fText) });
+                            } else if (t.trim() === "") {
+                                doc.setFont("helvetica", "normal"); doc.setFontSize(10.5);
+                                tokens.push({ type: 'space', text: ' ', width: doc.getTextWidth(' ') });
+                            } else {
+                                doc.setFont("helvetica", "normal"); doc.setFontSize(10.5);
+                                tokens.push({ type: 'text', text: t, width: doc.getTextWidth(t) });
+                            }
+                        });
+
+                        const lines = [];
+                        let curLine = [];
+                        let curLineW = 0;
+                        tokens.forEach(tk => {
+                            if (curLineW + tk.width > width && curLine.length > 0) {
+                                if (curLine[curLine.length-1].type === 'space') { 
+                                    curLineW -= curLine[curLine.length-1].width; 
+                                    curLine.pop(); 
+                                }
+                                lines.push({ tokens: curLine, width: curLineW });
+                                curLine = []; curLineW = 0;
+                            }
+                            if (tk.type === 'space' && curLine.length === 0) return;
+                            curLine.push(tk);
+                            curLineW += tk.width;
+                        });
+                        if (curLine.length > 0) lines.push({ tokens: curLine, width: curLineW });
+
+                        lines.forEach((line, lIdx) => {
+                            if (currentY > 275) { doc.addPage(); currentY = 25; }
                             let curX = x;
-                            const lineParts = line.split(/(\uE000\d+\uE000)/g);
-                            
-                            lineParts.forEach(lp => {
-                                if (lp.startsWith('\uE000') && lp.endsWith('\uE000')) {
-                                    const idx = parseInt(lp.substring(1, lp.length - 1));
-                                    const formula = richParts[idx];
-                                    
-                                    if (mathMap[formula]) {
-                                        doc.setFont(mathMap[formula].font, "normal");
-                                        doc.setFontSize(11);
-                                        doc.text(mathMap[formula].char, curX, currentY);
-                                        curX += doc.getTextWidth(mathMap[formula].char);
-                                    } else {
-                                        // Inline Subscript Support: e.g. [iF]\Delta V_{max}[/iF]
-                                        if (formula.includes('_{')) {
-                                            const subMatch = formula.match(/(.*)_{(.*)}/);
-                                            if (subMatch) {
-                                                const main = subMatch[1];
-                                                const sub = subMatch[2];
-                                                
-                                                // Render main part
-                                                if (mathMap[main]) {
-                                                    doc.setFont(mathMap[main].font, "normal");
-                                                    doc.setFontSize(11);
-                                                    doc.text(mathMap[main].char, curX, currentY);
-                                                    curX += doc.getTextWidth(mathMap[main].char);
-                                                } else {
-                                                    doc.setFont("helvetica", "bolditalic");
-                                                    doc.setFontSize(11);
-                                                    const cleanMain = main.replace(/\\/g, '');
-                                                    doc.text(cleanMain, curX, currentY);
-                                                    curX += doc.getTextWidth(cleanMain);
-                                                }
-                                                
-                                                // Render subscript
-                                                doc.setFont("helvetica", "bolditalic");
-                                                doc.setFontSize(8);
-                                                doc.text(sub, curX, currentY + 1.2);
-                                                curX += doc.getTextWidth(sub);
-                                                doc.setFontSize(9.5);
-                                            }
-                                        } else {
-                                            doc.setFont("helvetica", "bolditalic");
-                                            doc.setFontSize(11);
-                                            const cleanCmd = formula.replace(/\\/g, '');
-                                            doc.text(cleanCmd, curX, currentY);
-                                            curX += doc.getTextWidth(cleanCmd);
-                                        }
-                                    }
-                                    doc.setFont("helvetica", "normal");
-                                    doc.setFontSize(9.5);
-                                } else {
-                                    doc.text(lp, curX, currentY);
-                                    curX += doc.getTextWidth(lp);
+                            const isLastLine = lIdx === lines.length - 1;
+                            const spaceTokens = line.tokens.filter(tk => tk.type === 'space');
+                            let extraSpacePerGap = 0;
+                            if (!isLastLine && spaceTokens.length > 0) {
+                                extraSpacePerGap = (width - line.width) / spaceTokens.length;
+                            }
+
+                            line.tokens.forEach(tk => {
+                                if (tk.type === 'formula') {
+                                    const segs = parseToSegments(tk.text);
+                                    curX = drawSegs(doc, segs, curX, currentY, 10.5);
+                                } else if (tk.type === 'text') {
+                                    doc.setFont("helvetica", "normal"); doc.setFontSize(10.5);
+                                    doc.setTextColor(50,50,50);
+                                    doc.text(tk.text, curX, currentY);
+                                    curX += tk.width;
+                                } else if (tk.type === 'space') {
+                                    curX += (tk.width + extraSpacePerGap);
                                 }
                             });
-                            currentY += 5.5;
+                            currentY += 6.5;
                         });
+                        currentY += 1.5;
                     });
                 }
             });
@@ -2060,14 +2129,14 @@ function generaPDF(proj) {
             mainResultVal = `Sezione: ${displaySec} mm² | Iz Corretta: ${d.iz.toFixed(1)} A`;
 
             // Draw Hero Box ONLY for Cable Sizing
-            doc.setFillColor(245, 250, 255);
+            doc.setFillColor(248, 250, 252);
             doc.setDrawColor(...brandColor);
             doc.setLineWidth(0.3);
             doc.roundedRect(14, 42, 182, 20, 2, 2, 'FD');
 
             doc.setTextColor(...brandColor);
             doc.setFont("helvetica", "bold");
-            doc.setFontSize(9);
+            doc.setFontSize(10); // Slightly larger
             doc.text(mainResultHeader, 18, 50);
 
             doc.setFontSize(14);
@@ -2099,21 +2168,22 @@ function generaPDF(proj) {
 
         // Standard autoTable theme configuration
         const cleanTableTheme = {
-            theme: 'plain',
+            theme: 'grid',
             styles: {
                 font: 'helvetica',
-                fontSize: 8.5,
+                fontSize: 9.5, // Increased from 8.5
                 cellPadding: 3,
-                textColor: [60, 60, 60],
-                lineColor: [235, 235, 235],
-                lineWidth: { bottom: 0.1 }
+                textColor: [50, 50, 50],
+                lineColor: [220, 220, 220],
+                lineWidth: 0.1
             },
             headStyles: {
                 fillColor: [248, 249, 250],
-                textColor: [33, 37, 41],
+                textColor: [50, 50, 50],
                 fontStyle: 'bold',
-                lineWidth: { bottom: 0.4 },
-                lineColor: brandColor
+                fontSize: 10.5, // Increased from 9
+                lineWidth: 0.1,
+                lineColor: [220, 220, 220]
             },
             alternateRowStyles: {
                 fillColor: [254, 254, 254]
@@ -2144,6 +2214,7 @@ function generaPDF(proj) {
             });
 
             startY = doc.lastAutoTable.finalY + 10;
+            if (startY > 230) { doc.addPage(); startY = 25; }
             startY = drawSectionTitle("Specifiche Modulo Fotovoltaico", startY);
             const modBody = [];
             if (d.inputs.moduleName) modBody.push(['Preset Selezionato', safeStr(d.inputs.moduleName.toUpperCase()), '-']);
@@ -2166,6 +2237,7 @@ function generaPDF(proj) {
             });
 
             startY = doc.lastAutoTable.finalY + 10;
+            if (startY > 230) { doc.addPage(); startY = 25; }
             startY = drawSectionTitle("Configurazione Stringhe per MPPT", startY);
             const mpptRows = d.mpptConfig.map(cfg => [
                 `Ingresso MPPT ${cfg.mppt}`,
@@ -2181,6 +2253,7 @@ function generaPDF(proj) {
             });
 
             startY = doc.lastAutoTable.finalY + 10;
+            if (startY > 230) { doc.addPage(); startY = 25; }
             startY = drawSectionTitle("Dimensionamento Quadro CC", startY);
             doc.autoTable({
                 ...cleanTableTheme,
@@ -2188,7 +2261,8 @@ function generaPDF(proj) {
                 head: [['Elemento Quadro CC', 'Specifica']],
                 body: [
                     ['Sezione Cavo Solare CC', `${d.cableSec} mm\u00b2`],
-                    ['Portata Cavo alla Posa (Iz)', `${d.izCavo} A`],
+                    ['Portata Cavo (30\u00b0C)', `${d.izBase} A`],
+                    ['Portata corretta (70\u00b0C) [Iz_eff]', `${d.izEff.toFixed(1)} A`],
                     ['Caduta di Tensione (Delta V%)', `${typeof d.cableSec === 'number' ? d.dvReal.toFixed(2) : '--'} %`],
                     ['Protezione di Stringa', `${d.fuse}A gPV`],
                     ['Scaricatore Sovratensioni (SPD)', `Ucpv >= ${d.v_sez.toFixed(0)} V`],
@@ -2240,15 +2314,19 @@ function generaPDF(proj) {
             const sections = [
                 {
                     title: "1. Dimensionamento Cavi Solari (Lato Corrente Continua)",
-                    text: "Le sezioni dei cavi solari sono calcolate per garantire che la portata Iz, opportunamente declassata in base ai fattori di correzione per temperatura e tipo di posa (Norme CEI-UNEL e CEI 64-8), sia sempre superiore alla corrente massima della stringa. La caduta di tensione percentuale ([iF]\\Delta V[/iF]%) sul tratto in Corrente Continua \u00e8 verificata tramite la formula: [F]\\Delta V = \\frac{2 \\cdot L \\cdot I \\cdot \\rho}{S}[/F] dove [iF]\\rho[/iF] \u00e8 la resistivit\u00e0 del rame alla temperatura di esercizio, L \u00e8 la lunghezza della linea e I \u00e8 la corrente di impiego."
+                    text: "Le sezioni dei cavi solari sono calcolate per garantire che la portata [iF]Iz[/iF] sia superiore alla protezione di stringa. Per i conduttori del lato DC (stringhe), viene applicato un coefficiente correttivo [iF]K_{solare} = 0.58[/iF]. Tale fattore tiene conto delle condizioni di posa gravose tipiche dell'ambiente fotovoltaico, dove la vicinanza ai moduli e l'irraggiamento diretto portano la temperatura operativa dei cavi a circa 70\u00b0C (Rif. Guida CEI 82-25). La caduta di tensione percentuale ([iF]\\Delta V[/iF]%) sul tratto in Corrente Continua \u00e8 verificata tramite la formula: [F]\\Delta V = \\frac{2 \\cdot L \\cdot I \\cdot \\rho}{S}[/F]"
                 },
                 {
-                    title: "2. Protezione contro le Sovracorrenti (Fusibili Lato CC)",
-                    text: "Il dimensionamento delle protezioni di stringa (fusibili gPV) rispetta la Norma CEI 64-8, art. 712. Per configurazioni con 1 o 2 stringhe in parallelo per singolo MPPT indipendente, la protezione non \u00e8 normativamente richiesta in quanto le correnti inverse non possono superare la portata del modulo. Per 3 o pi\u00f9 stringhe in parallelo, la taglia nominale del fusibile (In) \u00e8 calcolata per rispettare il range: [F]1,1 \\cdot Isc_{max} \\le In \\le Limite Modulo[/F] Isc_{max} \u00e8 pari alla Isc in STC maggiorata del 25%: [F]Isc_{max} = Isc \\cdot 1,25[/F] Il 'Limite Modulo' corrisponde alla Taglia Max Fusibile dichiarata dal costruttore, oppure al valore della Corrente Inversa Massima (I_MOD_MAX_OCPR) moltiplicata per 1,35."
+                    title: "2. Verifica delle Tensioni di Stringa",
+                    text: "Il dimensionamento elettrico lato DC prevede la verifica dei limiti di tensione dell'inverter in funzione delle escursioni termiche dei moduli fotovoltaici. come riportato dalla Guida CEI 82 - 25. Conformemente alla normativa, le tensioni operative della stringa vengono ricalcolate partendo dalle condizioni STC (Standard Test Conditions) e applicando i coefficienti di temperatura di tensione dichiarati dal costruttore ([iF]\\beta_{Voc}[/iF] e [iF]\\beta_{Vmp}[/iF]).\n\n[iF]Tensione Massima a Vuoto (Voc,max):[/iF] Viene calcolata alla temperatura minima di progetto (tipicamente -10\u00b0C) per garantire che non venga mai superata la tensione massima assoluta tollerata dall'inverter.\n[F]V_{oc,max} = N_s \\cdot V_{oc,STC} \\cdot [1 + \\frac{\\beta_{Voc}}{100} \\cdot (T_{min} - 25)][/F]\n\n[iF]Tensione Minima di Funzionamento (Vmp,min):[/iF] Viene calcolata alla temperatura operativa massima della cella (tipicamente +70\u00b0C, tenendo conto del surriscaldamento locale) per assicurare che la stringa mantenga un valore di tensione sempre superiore alla soglia minima di aggancio dell'MPPT.\n[F]V_{mp,min} = N_s \\cdot V_{mp,STC} \\cdot [1 + \\frac{\\beta_{Vmp}}{100} \\cdot (T_{max} - 25)][/F]\n\n(Dove [iF]N_s[/iF] rappresenta il numero di moduli collegati in serie per stringa)."
                 },
                 {
-                    title: "3. Protezione contro le Sovratensioni (SPD Lato CC)",
-                    text: "La scelta dello Scaricatore di Sovratensione (SPD) lato continua viene effettuata verificando che la tensione massima continuativa dell'SPD (Ucpv) sia maggiore o uguale alla massima tensione a vuoto generata dalla stringa (Voc_{max}). La Voc_{max} viene calcolata partendo dalla Voc in condizioni STC e applicando il coefficiente di temperatura del pannello (Beta) riferito alla temperatura minima di progetto dell'impianto (es. -10\u00b0C)."
+                    title: "3. Protezione contro le Sovracorrenti (Fusibili Lato CC)",
+                    text: "Il dimensionamento delle protezioni di stringa (fusibili gPV) rispetta la Norma CEI 64-8, art. 712. Per configurazioni con 1 o 2 stringhe in parallelo per singolo MPPT indipendente, la protezione non \u00e8 normativamente richiesta in quanto le correnti inverse non possono superare la portata del modulo. Per 3 o pi\u00f9 stringhe in parallelo, la taglia nominale del fusibile ([iF]In[/iF]) \u00e8 calcolata per rispettare il range: [F]1,1 \\cdot Isc_{max} \\le In \\le Limite Modulo[/F] [iF]Isc_{max}[/iF] \u00e8 pari alla [iF]Isc[/iF] in STC maggiorata del 25%: [F]Isc_{max} = Isc \\cdot 1,25[/F] Il 'Limite Modulo' corrisponde alla Taglia Max Fusibile dichiarata dal costruttore, oppure al valore della Corrente Inversa Massima (I_MOD_MAX_OCPR) moltiplicata per 1,35."
+                },
+                {
+                    title: "4. Protezione contro le Sovratensioni (SPD Lato CC)",
+                    text: "La scelta dello Scaricatore di Sovratensione (SPD) lato continua viene effettuata verificando che la tensione massima continuativa dell'SPD ([iF]Ucpv[/iF]) sia maggiore o uguale alla massima tensione a vuoto generata dalla stringa ([iF]Voc_{max}[/iF]). La [iF]Voc_{max}[/iF] viene calcolata partendo dalla [iF]Voc[/iF] in condizioni STC e applicando il coefficiente di temperatura del pannello ([iF]\\beta[/iF]) riferito alla temperatura minima di progetto dell'impianto (es. -10\u00b0C)."
                 }
             ];
 
@@ -2304,21 +2382,27 @@ function generaPDF(proj) {
             });
 
             startY = doc.lastAutoTable.finalY + 10;
-            startY = drawSectionTitle("Metodo di Posa e Conduttori", startY);
+            if (startY > 230) { doc.addPage(); startY = 25; }
+            startY = drawSectionTitle("Metodo di Posa, Isolamento e Protezione", startY);
             const posaVal = paramIns.posa || '';
             let rawPosaDesc = proj.uiState && proj.uiState['sel-posa-text'] ? proj.uiState['sel-posa-text'] : formatPosaName(posaVal);
             let posaDesc = rawPosaDesc.replace(/<[^>]*>?/gm, '').trim();
             let matDesc = paramIns.mat === 'rame' ? 'Rame' : 'Alluminio';
             let isoDesc = paramIns.iso === 'pvc_70C' ? 'PVC (70\u00b0C)' : 'EPR / XLPE (90\u00b0C)';
+            let protTypeStr = d.protType === 'mcb' ? 'Interruttore (MCB)' : (d.protType === 'fuse' ? 'Fusibile gG' : 'N/A');
+            if ((paramIns.v || 0) > 1000) {
+                protTypeStr = 'Relè Programmabile (ANSI 51)';
+            }
 
             doc.autoTable({
                 ...cleanTableTheme,
                 startY: startY,
-                head: [['Caratteristica Posa', 'Specifica Tecnica']],
+                head: [['Caratteristica Posa e Protezione', 'Specifica Tecnica']],
                 body: [
                     ['Metodo di Posa', posaDesc],
                     ['Materiale Conduttore', matDesc],
-                    ['Materiale Isolante', isoDesc]
+                    ['Materiale Isolante', isoDesc],
+                    ['Dispositivo di Protezione', protTypeStr]
                 ],
             });
 
@@ -2347,6 +2431,7 @@ function generaPDF(proj) {
             }
 
             startY = doc.lastAutoTable.finalY + 10;
+            if (startY > 210) { doc.addPage(); startY = 25; }
             startY = drawSectionTitle("Sintesi Risultati di Calcolo", startY);
             const multiplier = paramIns.isTri ? '3x' : '';
             const nCavi = d.n || 1;
@@ -2357,10 +2442,9 @@ function generaPDF(proj) {
             let valIn = (d.In !== undefined && d.In !== null) ? d.In : (d.in || null);
             let inStr = valIn != null ? valIn + ' A' : 'N/A';
             let coordCheckStr = 'N/A';
-            let protTypeStr = d.protType === 'mcb' ? 'Interruttore (MCB)' : (d.protType === 'fuse' ? 'Fusibile gG' : 'N/A');
+            // protTypeStr already declared above
 
             if ((paramIns.v || 0) > 1000) {
-                protTypeStr = 'ANSI 51 (MV Protection)';
                 inStr = 'Set by Project';
                 coordCheckStr = 'Termica Iz >= Ib verificata.';
             } else {
@@ -2390,7 +2474,7 @@ function generaPDF(proj) {
 
             // --- NUOVA PAGINA: RELAZIONE TECNICA (CABLING) ---
             doc.addPage();
-            let yPosMethod = 25;
+            let yPosMethod = 30;
             const marginXM = 14;
             const maxWM = 182;
 
@@ -2407,24 +2491,31 @@ function generaPDF(proj) {
             const isTri = d.inputs && d.inputs.isTri;
             const isMT = (paramIns.v || 0) > 1000;
 
+            let protText = "";
+            if (d.protType === 'fuse') {
+                protText = "La protezione contro il sovraccarico tramite fusibili gG è verificata secondo CEI 64-8. Oltre alla condizione [iF]Ib \\le In \\le Iz[/iF], il software applica il coefficiente riduttivo di 0,9 alla portata del cavo ([iF]In \\le 0,9 \\cdot Iz[/iF]) per garantire che la corrente di funzionamento convenzionale [iF]I_{2}[/iF] rispetti sempre il limite di [iF]1,45 \\cdot Iz[/iF] imposto dalla norma.";
+            } else {
+                protText = "Il dimensionamento del conduttore e la scelta del dispositivo di protezione vengono eseguiti nel rigoroso rispetto delle condizioni imposte dalla Norma CEI 64-8. Affinché il cavo sia protetto contro il sovraccarico, la corrente nominale (o di regolazione) del dispositivo di protezione (In) deve soddisfare la disuguaglianza fondamentale: [F]Ib \\le In \\le Iz[/F] L'algoritmo di calcolo verifica iterativamente le sezioni commerciali fino a individuare la sezione minima che garantisce l'esito positivo di tale coordinamento termico.";
+            }
+
             if (!isTri) {
                 // 1) MONOFASE
                 methodSections = [
                     {
                         title: "1. Calcolo della Corrente di Impiego (Ib)",
-                        text: "La corrente di impiego viene determinata in base alla potenza del carico immessa a progetto e alle caratteristiche della rete di alimentazione. Per i circuiti in corrente alternata monofase, il calcolo della corrente assorbita si basa sulla seguente relazione: [F]Ib = \\frac{P \\cdot 1000}{V \\cdot cos\\phi}[/F] dove P \u00e8 la potenza attiva espressa in kW, V \u00e8 la tensione nominale del sistema (tipicamente 230 V) e [iF]cos\\phi[/iF] \u00e8 il fattore di potenza del carico. Per potenze espresse in kVA, il termine del fattore di potenza viene omesso dal denominatore."
+                        text: "La corrente di impiego viene determinata in base alla potenza del carico immessa a progetto e alle caratteristiche della rete di alimentazione. Per i circuiti in corrente alternata monofase, il calcolo della corrente assorbita si basa sulla seguente relazione: [F]Ib = \\frac{P \\cdot 1000}{V \\cdot cos\\phi}[/F] dove [iF]P[/iF] \u00e8 la potenza attiva espressa in kW, [iF]V[/iF] \u00e8 la tensione nominale del sistema (tipicamente 230 V) e [iF]cos\\phi[/iF] \u00e8 il fattore di potenza del carico. Per potenze espresse in kVA, il termine del fattore di potenza viene omesso dal denominatore."
                     },
                     {
                         title: "2. Portata del Cavo (Iz) e Fattori di Correzione",
-                        text: "La portata nominale del conduttore (I0) viene estratta in base al tipo di isolante (es. PVC, EPR/XLPE) e al metodo di posa, in stretta conformit\u00e0 alle tabelle CEI-UNEL 35024 (posa in aria) e CEI-UNEL 35026 (posa interrata). Tale portata tabellare viene opportunamente declassata applicando i coefficienti di correzione per ottenere la portata effettiva di impiego (Iz):\nK1: Fattore di correzione per temperatura ambiente (riferimento normativo 30\u00b0C in aria, 20\u00b0C nel terreno).\nK2: Fattore di correzione per raggruppamento di pi\u00f9 circuiti o cavi posati in prossimit\u00e0.\nK3: Fattore di correzione per la profondit\u00e0 di posa (applicabile solo ai cavi interrati, riferimento 0.8 m).\nK4: Fattore di correzione per la resistivit\u00e0 termica del terreno (riferimento 1.5 K\u00b7m/W).\nLa portata effettiva \u00e8 calcolata come: [F]Iz = I0 \\cdot K1 \\cdot K2 \\cdot K3 \\cdot K4 \\cdot n[/F] dove n rappresenta il numero di conduttori in parallelo."
+                        text: "La portata nominale del conduttore ([iF]I0[/iF]) viene estratta in base al tipo di isolante (es. PVC, EPR/XLPE) e al metodo di posa, in stretta conformit\u00e0 alle tabelle CEI-UNEL 35024 (posa in aria) e CEI-UNEL 35026 (posa interrata). Tale portata tabellare viene opportunamente declassata applicando i coefficienti di correzione per ottenere la portata effettiva di impiego ([iF]Iz[/iF]):\nK1: Fattore di correzione per temperatura ambiente (riferimento normativo 30\u00b0C in aria, 20\u00b0C nel terreno).\nK2: Fattore di correzione per raggruppamento di pi\u00f9 circuiti o cavi posati in prossimit\u00e0.\nK3: Fattore di correzione per la profondit\u00e0 di posa (applicabile solo ai cavi interrati, riferimento 0.8 m).\nK4: Fattore di correzione per la resistivit\u00e0 termica del terreno (riferimento 1.5 K\u00b7m/W).\nLa portata effettiva \u00e8 calcolata come: [F]Iz = I0 \\cdot K1 \\cdot K2 \\cdot K3 \\cdot K4 \\cdot n[/F] dove [iF]n[/iF] rappresenta il numero di conduttori in parallelo."
                     },
                     {
                         title: "3. Coordinamento delle Protezioni contro i Sovraccarichi",
-                        text: "Il dimensionamento del conduttore e la scelta del dispositivo di protezione vengono eseguiti nel rigoroso rispetto delle condizioni imposte dalla Norma CEI 64-8. Affinch\u00e9 il cavo sia protetto contro il sovraccarico, la corrente nominale (o di regolazione) del dispositivo di protezione (In) deve soddisfare la disuguaglianza fondamentale: [F]Ib \\le In \\le Iz[/F] L'algoritmo di calcolo verifica iterativamente le sezioni commerciali fino a individuare la sezione minima che garantisce l'esito positivo di tale coordinamento termico."
+                        text: protText
                     },
                     {
                         title: "4. Verifica della Caduta di Tensione (Delta V)",
-                        text: "A garanzia della corretta alimentazione delle utenze finali, viene verificata la caduta di tensione lungo la linea, tenendo conto sia della componente resistiva che di quella reattiva del cavo e considerando sia il conduttore di fase che quello di neutro. Per i sistemi monofase, la caduta di tensione percentuale viene calcolata tramite l'equazione: [F]\\Delta V% = \\frac{2 \\cdot L \\cdot Ib \\cdot (R \\cdot cos\\phi + X \\cdot sin\\phi)}{1000 \\cdot V} \\cdot 100[/F] dove L \u00e8 la lunghezza della tratta in metri, R e X sono rispettivamente la resistenza e la reattanza chilometrica del cavo (in Ohm/km) alla temperatura di regime ordinario. Il software valida la sezione solo se il valore ottenuto risulta strettamente inferiore o uguale al limite massimo [iF]\\Delta V_{max}[/iF] impostato dal progettista."
+                        text: "A garanzia della corretta alimentazione delle utenze finali, viene verificata la caduta di tensione lungo la linea, tenendo conto sia della componente resistiva che di quella reattiva del cavo e considerando sia il conduttore di fase che quello di neutro. Per i sistemi monofase, la caduta di tensione percentuale viene calcolata tramite l'equazione: [F]\\Delta V% = \\frac{2 \\cdot L \\cdot Ib \\cdot (R \\cdot cos\\phi + X \\cdot sin\\phi)}{1000 \\cdot V} \\cdot 100[/F] dove [iF]L[/iF] \u00e8 la lunghezza della tratta in metri, [iF]R[/iF] e [iF]X[/iF] sono rispettivamente la resistenza e la reattanza chilometrica del cavo (in Ohm/km) alla temperatura di regime ordinario. Il software valida la sezione solo se il valore ottenuto risulta strettamente inferiore o uguale al limite massimo [iF]\\Delta V_{max}[/iF] impostato dal progettista."
                     }
                 ];
             } else if (!isMT) {
@@ -2432,19 +2523,19 @@ function generaPDF(proj) {
                 methodSections = [
                     {
                         title: "1. Calcolo della Corrente di Impiego (Ib)",
-                        text: "La corrente di impiego viene determinata in base alla potenza del carico immessa a progetto e alle caratteristiche della rete di alimentazione. Per i sistemi trifase, il calcolo della corrente assorbita si basa sulla seguente relazione: [F]Ib = \\frac{P \\cdot 1000}{\\sqrt{3} \\cdot V \\cdot cos\\phi}[/F] dove P \u00e8 la potenza attiva espressa in kW, V \u00e8 la tensione concatenata in Volt e cos phi \u00e8 il fattore di potenza del carico. Per potenze espresse in kVA, il termine del fattore di potenza viene omesso dal denominatore."
+                        text: "La corrente di impiego viene determinata in base alla potenza del carico immessa a progetto e alle caratteristiche della rete di alimentazione. Per i sistemi trifase, il calcolo della corrente assorbita si basa sulla seguente relazione: [F]Ib = \\frac{P \\cdot 1000}{\\sqrt{3} \\cdot V \\cdot cos\\phi}[/F] dove [iF]P[/iF] \u00e8 la potenza attiva espressa in kW, [iF]V[/iF] \u00e8 la tensione concatenata in Volt e [iF]cos\\phi[/iF] \u00e8 il fattore di potenza del carico. Per potenze espresse in kVA, il termine del fattore di potenza viene omesso dal denominatore."
                     },
                     {
                         title: "2. Portata del Cavo (Iz) e Fattori di Correzione",
-                        text: "La portata nominale del conduttore (I0) viene estratta in base al tipo di isolante (es. PVC, EPR/XLPE) e al metodo di posa, in stretta conformit\u00e0 alle tabelle CEI-UNEL 35024 (posa in aria) e CEI-UNEL 35026 (posa interrata). Tale portata tabellare viene opportunamente declassata applicando i coefficienti di correzione per ottenere la portata effettiva di impiego (Iz):\nK1: Fattore di correzione per temperatura ambiente (riferimento normativo 30\u00b0C in aria, 20\u00b0C nel terreno).\nK2: Fattore di correzione per raggruppamento di pi\u00f9 circuiti o cavi posati in prossimit\u00e0.\nK3: Fattore di correzione per la profondit\u00e0 di posa (applicabile solo ai cavi interrati, riferimento 0.8 m).\nK4: Fattore di correzione per la resistivit\u00e0 termica del terreno (riferimento 1.5 K\u00b7m/W).\nLa portata effettiva \u00e8 calcolata come: [F]Iz = I0 \\cdot K1 \\cdot K2 \\cdot K3 \\cdot K4 \\cdot n[/F] dove n rappresenta il numero di conduttori in parallelo per fase."
+                        text: "La portata nominale del conduttore ([iF]I0[/iF]) viene estratta in base al tipo di isolante (es. PVC, EPR/XLPE) e al metodo di posa, in stretta conformit\u00e0 alle tabelle CEI-UNEL 35024 (posa in aria) e CEI-UNEL 35026 (posa interrata). Tale portata tabellare viene opportunamente declassata applicando i coefficienti di correzione per ottenere la portata effettiva di impiego ([iF]Iz[/iF]):\nK1: Fattore di correzione per temperatura ambiente (riferimento normativo 30\u00b0C in aria, 20\u00b0C nel terreno).\nK2: Fattore di correzione per raggruppamento di pi\u00f9 circuiti o cavi posati in prossimit\u00e0.\nK3: Fattore di correzione per la profondit\u00e0 di posa (applicabile solo ai cavi interrati, riferimento 0.8 m).\nK4: Fattore di correzione per la resistivit\u00e0 termica del terreno (riferimento 1.5 K\u00b7m/W).\nLa portata effettiva \u00e8 calcolata come: [F]Iz = I0 \\cdot K1 \\cdot K2 \\cdot K3 \\cdot K4 \\cdot n[/F] dove [iF]n[/iF] rappresenta il numero di conduttori in parallelo per fase."
                     },
                     {
                         title: "3. Coordinamento delle Protezioni contro i Sovraccarichi",
-                        text: "Il dimensionamento del conduttore e la scelta del dispositivo di protezione vengono eseguiti nel rigoroso rispetto delle condizioni imposte dalla Norma CEI 64-8. Affinch\u00e9 il cavo sia protetto contro il sovraccarico, la corrente nominale (o di regolazione) del dispositivo di protezione (In) deve soddisfare la disuguaglianza fondamentale: [F]Ib \\le In \\le Iz[/F] L'algoritmo di calcolo verifica iterativamente le sezioni commerciali fino a individuare la sezione minima che garantisce l'esito positivo di tale coordinamento termico."
+                        text: protText
                     },
                     {
                         title: "4. Verifica della Caduta di Tensione (Delta V)",
-                        text: "A garanzia della corretta alimentazione delle utenze finali, viene verificata la caduta di tensione lungo la linea, tenendo conto sia della componente resistiva che di quella reattiva del cavo. Per i sistemi trifase, la caduta di tensione percentuale viene calcolata tramite l'equazione: [F]\\Delta V% = \\frac{\\sqrt{3} \\cdot L \\cdot Ib \\cdot (R \\cdot cos\\phi + X \\cdot sin\\phi)}{1000 \\cdot V} \\cdot 100[/F] dove L \u00e8 la lunghezza della tratta in metri, R e X sono rispettivamente la resistenza e la reattanza chilometrica del cavo (in Ohm/km) alla temperatura di regime ordinario. Il software valida la sezione solo se il valore ottenuto risulta strettamente inferiore o uguale al limite massimo [iF]\\Delta V_{max}[/iF] impostato dal progettista."
+                        text: "A garanzia della corretta alimentazione delle utenze finali, viene verificata la caduta di tensione lungo la linea, tenendo conto sia della componente resistiva che di quella reattiva del cavo. Per i sistemi trifase, la caduta di tensione percentuale viene calcolata tramite l'equazione: [F]\\Delta V% = \\frac{\\sqrt{3} \\cdot L \\cdot Ib \\cdot (R \\cdot cos\\phi + X \\cdot sin\\phi)}{1000 \\cdot V} \\cdot 100[/F] dove [iF]L[/iF] \u00e8 la lunghezza della tratta in metri, [iF]R[/iF] e [iF]X[/iF] sono rispettivamente la resistenza e la reattanza chilometrica del cavo (in Ohm/km) alla temperatura di regime ordinario. Il software valida la sezione solo se il valore ottenuto risulta strettamente inferiore o uguale al limite massimo [iF]\\Delta V_{max}[/iF] impostato dal progettista."
                     }
                 ];
             } else {
@@ -2452,20 +2543,23 @@ function generaPDF(proj) {
                 methodSections = [
                     {
                         title: "1. Calcolo della Corrente di Impiego (Ib)",
-                        text: "La corrente di impiego viene determinata in base alla potenza del carico immessa a progetto e alle caratteristiche della rete di alimentazione. Per i sistemi trifase, il calcolo della corrente assorbita si basa sulla seguente relazione: [F]Ib = \\frac{P \\cdot 1000}{\\sqrt{3} \\cdot V \\cdot cos\\phi}[/F] dove P \u00e8 la potenza attiva espressa in kW, V \u00e8 la tensione concatenata in Volt e [iF]cos\\phi[/iF] \u00e8 il fattore di potenza del carico. Per potenze espresse in kVA, il termine del fattore di potenza viene omesso dal denominatore."
+                        text: "La corrente di impiego viene determinata in base alla potenza del carico immessa a progetto e alle caratteristiche della rete di alimentazione. Per i sistemi trifase, il calcolo della corrente assorbita si basa sulla seguente relazione: [F]Ib = \\frac{P \\cdot 1000}{\\sqrt{3} \\cdot V \\cdot cos\\phi}[/F] dove [iF]P[/iF] \u00e8 la potenza attiva espressa in kW, [iF]V[/iF] \u00e8 la tensione concatenata in Volt e [iF]cos\\phi[/iF] \u00e8 il fattore di potenza del carico. Per potenze espresse in kVA, il termine del fattore di potenza viene omesso dal denominatore."
                     },
                     {
                         title: "2. Portata del Cavo (Iz) e Fattori di Correzione",
-                        text: "La portata nominale del conduttore (I0) viene estratta in base al tipo di isolante (es. PVC, EPR/XLPE) e al metodo di posa, in stretta conformit\u00e0 alle tabelle CEI-UNEL 35024 (posa in aria) e CEI-UNEL 35026 (posa interrata). Per gli impianti in Media Tensione si fa riferimento alla Norma CEI 11-17. Tale portata tabellare viene opportunamente declassata applicando i coefficienti di correzione per ottenere la portata effettiva di impiego (Iz):\nK1: Fattore di correzione per temperatura ambiente (riferimento normativo 30\u00b0C in aria, 20\u00b0C nel terreno).\nK2: Fattore di correzione per raggruppamento di pi\u00f9 circuiti o cavi posati in prossimit\u00e0.\nK3: Fattore di correzione per la profondit\u00e0 di posa (applicabile solo ai cavi interrati, riferimento 0.8 m).\nK4: Fattore di correzione per la resistivit\u00e0 termica del terreno (riferimento 1.5 K[iF]\\cdot[/iF]m/W).\nLa portata effettiva \u00e8 calcolata come: [F]Iz = I0 \\cdot K1 \\cdot K2 \\cdot K3 \\cdot K4 \\cdot n[/F] dove n rappresenta il numero di conduttori in parallelo per fase."
+                        text: "La portata nominale del conduttore ([iF]I0[/iF]) viene estratta in base al tipo di isolante (es. PVC, EPR/XLPE) e al metodo di posa, in stretta conformit\u00e0 alle tabelle CEI-UNEL 35024 (posa in aria) e CEI-UNEL 35026 (posa interrata). Per gli impianti in Media Tensione si fa riferimento alla Norma CEI 11-17. Tale portata tabellare viene opportunamente declassata applicando i coefficienti di correzione per ottenere la portata effettiva di impiego ([iF]Iz[/iF]):\nK1: Fattore di correzione per temperatura ambiente (riferimento normativo 30\u00b0C in aria, 20\u00b0C nel terreno).\nK2: Fattore di correzione per raggruppamento di pi\u00f9 circuiti o cavi posati in prossimit\u00e0.\nK3: Fattore di correzione per la profondit\u00e0 di posa (applicabile solo ai cavi interrati, riferimento 0.8 m).\nK4: Fattore di correzione per la resistivit\u00e0 termica del terreno (riferimento 1.5 K[iF]\\cdot[/iF]m/W).\nLa portata effettiva \u00e8 calcolata come: [F]Iz = I0 \\cdot K1 \\cdot K2 \\cdot K3 \\cdot K4 \\cdot n[/F] dove [iF]n[/iF] rappresenta il numero di conduttori in parallelo per fase."
                     },
                     {
                         title: "3. Verifica della Caduta di Tensione (Delta V)",
-                        text: "A garanzia della corretta alimentazione delle utenze finali, viene verificata la caduta di tensione lungo la linea, tenendo conto sia della componente resistiva che di quella reattiva del cavo. Per i sistemi trifase, la caduta di tensione percentuale viene calcolata tramite l'equazione: [F]\\Delta V% = \\frac{\\sqrt{3} \\cdot L \\cdot Ib \\cdot (R \\cdot cos\\phi + X \\cdot sin\\phi)}{1000 \\cdot V} \\cdot 100[/F] dove L \u00e8 la lunghezza della tratta in metri, R e X sono rispettivamente la resistenza e la reattanza chilometrica del cavo (in Ohm/km) alla temperatura di regime ordinario. Il software valida la sezione solo se il valore ottenuto risulta strettamente inferiore o uguale al limite massimo [iF]\\Delta V_{max}[/iF] impostato dal progettista."
+                        text: "A garanzia della corretta alimentazione delle utenze finali, viene verificata la caduta di tensione lungo la linea, tenendo conto sia della componente resistiva che di quella reattiva del cavo. Per i sistemi trifase, la caduta di tensione percentuale viene calcolata tramite l'equazione: [F]\\Delta V% = \\frac{\\sqrt{3} \\cdot L \\cdot Ib \\cdot (R \\cdot cos\\phi + X \\cdot sin\\phi)}{1000 \\cdot V} \\cdot 100[/F] dove [iF]L[/iF] \u00e8 la lunghezza della tratta in metri, [iF]R[/iF] e [iF]X[/iF] sono rispettivamente la resistenza e la reattanza chilometrica del cavo (in Ohm/km) alla temperatura di regime ordinario. Il software valida la sezione solo se il valore ottenuto risulta strettamente inferiore o uguale al limite massimo [iF]\\Delta V_{max}[/iF] impostato dal progettista."
                     }
                 ];
             }
 
             methodSections.forEach(s => {
+                if (yPosMethod > 240) { doc.addPage(); yPosMethod = 25; }
+
+                // Case PV-style header for subtities (Accent line above, no background)
                 doc.setDrawColor(...brandColor);
                 doc.setLineWidth(0.5);
                 doc.line(marginXM, yPosMethod, marginXM + 10, yPosMethod);

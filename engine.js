@@ -72,21 +72,31 @@ const ElectroEngine = {
                 
                 for (let s of sezioni) {
                     if (!paramElettrici[s]) continue;
-                    const iz = portateSchema[s] * kF.ktot * N;
+                    const izEff = portateSchema[s] * kF.ktot * N;
 
-                    if (iz >= ib) {
+                    if (izEff >= ib) {
                         if (!firstValidSection) firstValidSection = s;
-                        let In = null, isCoordOk = false;
+                        let protVal = null, isProtected = false;
 
                         if (tens === 'mt_media_tensione') {
-                            In = 'ANSI_51';
-                            isCoordOk = true; 
+                            protVal = 'ANSI_51';
+                            isProtected = true; 
                         } else {
-                            for (let val of inArray) { if (val >= ib) { In = val; break; } }
-                            if (In === null) continue; 
-                            isCoordOk = (protType === 'mcb') ? (In <= iz) : (In <= 0.9 * iz);
+                            for (let val of inArray) { if (val >= ib) { protVal = val; break; } }
+                            if (protVal === null) continue; 
+
+                            // Definiamo la condizione di coordinamento In <= Iz (o In <= 0.9*Iz per fusibili)
+                            let limitIz = izEff; 
+                            if (protType === 'fuse') {
+                                limitIz = 0.9 * izEff; // Condizione In <= 0.9 * Iz per garantire I2 <= 1.45 * Iz
+                            }
+
+                            const cond1 = ib <= protVal; // Ib <= In
+                            const cond2 = protVal <= limitIz; // In <= Iz (o 0.9*Iz)
+                            isProtected = cond1 && cond2;
                         }
-                        if (!isCoordOk) continue; 
+
+                        if (!isProtected) continue; 
 
                         const R = paramElettrici[s].R / N; 
                         const X = paramElettrici[s].X / N; 
@@ -94,7 +104,7 @@ const ElectroEngine = {
                         const dvPerc = (dvVolts / v) * 100;
 
                         if (dvPerc <= dvMax) {
-                            validSection = s; finalIz = iz; finalDv = dvPerc; finalN = N; finalKF = kF; finalIn = In;
+                            validSection = s; finalIz = izEff; finalDv = dvPerc; finalN = N; finalKF = kF; finalIn = protVal;
                             break;
                         }
                     }
@@ -127,24 +137,50 @@ const ElectroEngine = {
                 mpptConfig.push({ mppt: i + 1, moduli: n_mod, vstr: n_mod * vmp, vsez: n_mod * voc_tmin, valid: (n_mod >= nmin && n_mod <= nmax) });
             }
 
-            if (isc > imax) return { status: 'ERROR', errType: 'OVERCURRENT', msg: 'Corrente stringa > Imax Inverter' };
-            if (mpptConfig[0].moduli * voc_tmin > vmaxdc) return { status: 'ERROR', errType: 'OVERVOLTAGE', msg: 'Tensione > Vmax Inverter' };
-            if (mpptConfig[mpptConfig.length - 1].moduli * vmp_tmax < mpptmin) return { status: 'ERROR', errType: 'UNDERVOLTAGE', msg: 'Tensione < Vmppt min' };
-            const ptot = (ntot * wp) / 1000;
-            if (ptot > pmaxcc) return { status: 'ERROR', errType: 'POWERSATURATION', msg: 'Ptot > Pmax Inverter' };
+            const iscMax = isc * 1.25;
+            const vstr_min = mpptConfig[mpptConfig.length - 1].moduli * vmp_tmax;
+            const vstr_max = mpptConfig[0].moduli * voc_tmin;
+            const pTot = (ntot * wp) / 1000;
+
+            if (iscMax > imax) {
+                return { status: 'ERROR', errType: 'OVER_CURRENT', msg: `Errore di Sovracorrente: La corrente di cortocircuito massima (Isc_max = ${iscMax.toFixed(1)}A) eccede la capacità dell'ingresso MPPT (${imax}A). L'inverter opererà in clipping o andrà in blocco. Verificare il parallelo delle stringhe.` };
+            }
+            if (vstr_max > vmaxdc) {
+                return { status: 'ERROR', errType: 'OVER_VOLTAGE', msg: `Errore di Sovratensione Assoluta: La tensione a vuoto alla T. minima (Voc_max = ${vstr_max.toFixed(1)}V) supera il limite hardware dell'inverter (${vmaxdc}V). Rischio di guasto distruttivo. Ridurre i moduli in serie.` };
+            }
+            if (vstr_min < mpptmin) {
+                return { status: 'ERROR', errType: 'UNDER_VOLTAGE', msg: `Errore di Sottotensione Operativa: La tensione di lavoro alla T. massima (Vmp_min = ${vstr_min.toFixed(1)}V) è inferiore alla soglia minima MPPT (${mpptmin}V). Rischio di mancato avviamento ad alte temperature. Aumentare i moduli in serie.` };
+            }
+            if (pTot > pmaxcc) {
+                return { status: 'ERROR', errType: 'OVER_POWER', msg: `Errore di Sovradimensionamento: La potenza totale del campo FV (${pTot.toFixed(1)}kW) supera la potenza massima ammissibile in ingresso all'inverter (${pmaxcc}kW). Verificare le tolleranze di progetto del costruttore.` };
+            }
+            
             if (isAsymmetric && mpptConfig.some(cfg => !cfg.valid)) return { status: 'ERROR', errType: 'ASYMMETRY', msg: 'Ripartizione asimmetrica invalida' };
 
             const maxDvVolts = 0.015 * (mpptConfig[0].moduli * vmp);
             let cableSec = [4, 6, 10, 16, 25, 35].find(s => s >= (2 * lcavo * isc) / (56 * maxDvVolts)) || '>35';
-            const izCavo = { 4: 44, 6: 57, 10: 79, 16: 107, 25: 142, 35: 175 }[cableSec] || '--';
+            
+            // 1. Recupera la portata base a 30°C
+            const izBase = { 4: 44, 6: 57, 10: 79, 16: 107, 25: 142, 35: 175 }[cableSec] || 0;
+            // 2. Applica il coefficiente K_solare (0.58 per T=70°C)
+            const izEff = izBase * 0.58; 
+
             let dvReal = typeof cableSec === 'number' ? (((2 * lcavo * isc) / (56 * cableSec)) / (mpptConfig[0].moduli * vmp)) * 100 : 0;
 
             const fuseMin = 1.1 * (isc * 1.25);
-            const fuseMax = (protType === 'fuse') ? protVal : (protVal * 1.35);
+            // 3. Ricalcola fuseMax (Limite superiore della protezione)
+            // Deve essere il minimo tra il limite del modulo (protVal) e la portata corretta del cavo (izEff)
+            const fuseMax = Math.min(protVal, izEff);
+
+            // 4. Verifica di sicurezza
+            if (fuseMin > fuseMax) {
+                return { status: 'ERROR', errType: 'PROT_INCOMPATIBLE', msg: `Incompatibilità Protezioni: Il fusibile minimo richiesto (${fuseMin.toFixed(1)}A) supera la portata declassata del cavo a 70°C (${izEff.toFixed(1)}A) o il limite del modulo (${protVal}A). Aumentare la sezione del cavo solare.` };
+            }
+
             let fuse = [10, 12, 15, 20, 25, 30, 32, 40].find(f => f >= fuseMin);
             if (!fuse || fuse > fuseMax) return { status: 'ERROR', errType: 'FUSE', msg: `Fusibile ${fuseMin.toFixed(1)}A > Max sopportabile` };
 
-            return { type: 'pv', status: 'OK', nmin, nmax, ntot, nmppt, mpptConfig, isAsymmetric, ptot, dcac: (pac > 0 ? ptot/pac : ptot/pmaxcc).toFixed(2), cableSec, dvReal, fuse, v_sez: mpptConfig[0].vsez, isc, izCavo, inputs };
+            return { type: 'pv', status: 'OK', nmin, nmax, ntot, nmppt, mpptConfig, isAsymmetric, ptot: pTot, dcac: (pac > 0 ? pTot/pac : pTot/pmaxcc).toFixed(2), cableSec, dvReal, fuse, v_sez: mpptConfig[0].vsez, isc, izBase, izEff, inputs };
         } catch (e) { return { status: 'ERROR', msg: e.message }; }
     }
 };
