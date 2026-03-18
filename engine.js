@@ -72,21 +72,31 @@ const ElectroEngine = {
                 
                 for (let s of sezioni) {
                     if (!paramElettrici[s]) continue;
-                    const iz = portateSchema[s] * kF.ktot * N;
+                    const izEff = portateSchema[s] * kF.ktot * N;
 
-                    if (iz >= ib) {
+                    if (izEff >= ib) {
                         if (!firstValidSection) firstValidSection = s;
-                        let In = null, isCoordOk = false;
+                        let protVal = null, isProtected = false;
 
                         if (tens === 'mt_media_tensione') {
-                            In = 'ANSI_51';
-                            isCoordOk = true; 
+                            protVal = 'ANSI_51';
+                            isProtected = true; 
                         } else {
-                            for (let val of inArray) { if (val >= ib) { In = val; break; } }
-                            if (In === null) continue; 
-                            isCoordOk = (protType === 'mcb') ? (In <= iz) : (In <= 0.9 * iz);
+                            for (let val of inArray) { if (val >= ib) { protVal = val; break; } }
+                            if (protVal === null) continue; 
+
+                            // Definiamo la condizione di coordinamento In <= Iz (o In <= 0.9*Iz per fusibili)
+                            let limitIz = izEff; 
+                            if (protType === 'fuse') {
+                                limitIz = 0.9 * izEff; // Condizione In <= 0.9 * Iz per garantire I2 <= 1.45 * Iz
+                            }
+
+                            const cond1 = ib <= protVal; // Ib <= In
+                            const cond2 = protVal <= limitIz; // In <= Iz (o 0.9*Iz)
+                            isProtected = cond1 && cond2;
                         }
-                        if (!isCoordOk) continue; 
+
+                        if (!isProtected) continue; 
 
                         const R = paramElettrici[s].R / N; 
                         const X = paramElettrici[s].X / N; 
@@ -94,7 +104,7 @@ const ElectroEngine = {
                         const dvPerc = (dvVolts / v) * 100;
 
                         if (dvPerc <= dvMax) {
-                            validSection = s; finalIz = iz; finalDv = dvPerc; finalN = N; finalKF = kF; finalIn = In;
+                            validSection = s; finalIz = izEff; finalDv = dvPerc; finalN = N; finalKF = kF; finalIn = protVal;
                             break;
                         }
                     }
