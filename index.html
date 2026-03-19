@@ -645,12 +645,22 @@
                         </div>
                         <div class="input-row">
                             <div class="input-field">
+                                <label><span class="lbl-icon">🔋</span> Pot. Max Ingresso CC
+                                    (P<sub>max_cc</sub>)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="in-pv-pmaxcc" step="0.1" value="" placeholder="5">
+                                    <span class="unit">kW</span>
+                                </div>
+                            </div>
+                            <div class="input-field">
                                 <label><span class="lbl-icon">⚡</span> Tensione Max DC (V<sub>max</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-vmaxdc" value="" placeholder="600">
                                     <span class="unit">V</span>
                                 </div>
                             </div>
+                        </div>
+                        <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
                                 <label><span class="lbl-icon">📉</span> V MPPT Min (V<sub>mppt_min</sub>)</label>
                                 <div class="input-with-unit">
@@ -658,8 +668,6 @@
                                     <span class="unit">V</span>
                                 </div>
                             </div>
-                        </div>
-                        <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
                                 <label><span class="lbl-icon">📈</span> V MPPT Max</label>
                                 <div class="input-with-unit">
@@ -667,21 +675,13 @@
                                     <span class="unit">V</span>
                                 </div>
                             </div>
+                        </div>
+                        <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
                                 <label><span class="lbl-icon">⚡</span> Corrente Max MPPT (I<sub>max</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-imax" step="0.1" value="" placeholder="12">
                                     <span class="unit">A</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="input-row" style="margin-top:1rem">
-                            <div class="input-field">
-                                <label><span class="lbl-icon">🔋</span> Pot. Max Ingresso CC
-                                    (P<sub>max_cc</sub>)</label>
-                                <div class="input-with-unit">
-                                    <input type="number" id="in-pv-pmaxcc" step="0.1" value="" placeholder="5">
-                                    <span class="unit">kW</span>
                                 </div>
                             </div>
                             <div class="input-field">
@@ -693,6 +693,13 @@
                             </div>
                         </div>
                         <div class="input-row" style="margin-top:1rem">
+                            <div class="input-field">
+                                <label for="fv-nstringhe"><span class="lbl-icon">🔗</span> Stringhe in parallelo per MPPT</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="fv-nstringhe" value="1" min="1" step="1">
+                                    <span class="unit">n°</span>
+                                </div>
+                            </div>
                             <div class="input-field">
                                 <label><span class="lbl-icon">🔌</span> Potenza Nominale CA (uscita)</label>
                                 <div class="input-with-unit">
@@ -731,18 +738,18 @@
                                 </div>
                             </div>
                             <div class="input-field">
-                                <label><span class="lbl-icon">⚡</span> Tensione V<sub>oc</sub></label>
+                                <label><span class="lbl-icon">⚡</span> Tensione V<sub>mp</sub></label>
                                 <div class="input-with-unit">
-                                    <input type="number" id="in-pv-voc" step="0.1" value="" placeholder="49.5">
+                                    <input type="number" id="in-pv-vmp" step="0.1" value="" placeholder="41.5">
                                     <span class="unit">V</span>
                                 </div>
                             </div>
                         </div>
                         <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
-                                <label><span class="lbl-icon">⚡</span> Tensione V<sub>mp</sub></label>
+                                <label><span class="lbl-icon">⚡</span> Tensione V<sub>oc</sub></label>
                                 <div class="input-with-unit">
-                                    <input type="number" id="in-pv-vmp" step="0.1" value="" placeholder="41.5">
+                                    <input type="number" id="in-pv-voc" step="0.1" value="" placeholder="49.5">
                                     <span class="unit">V</span>
                                 </div>
                             </div>
@@ -751,19 +758,6 @@
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-isc" step="0.1" value="" placeholder="10.5">
                                     <span class="unit">A</span>
-                                </div>
-                            </div>
-                            <div class="input-field">
-                                <label><span class="lbl-icon">🛡️</span> Protezione Modulo</label>
-                                <div class="input-row" style="gap:4px; margin-top:0;">
-                                    <div class="input-with-unit" style="flex:1;">
-                                        <input type="number" id="in-pv-prot-val" value="25" placeholder="25">
-                                        <span class="unit">A</span>
-                                    </div>
-                                    <select id="in-pv-prot-type" class="m3-select" style="flex:1.5; height:42px;">
-                                        <option value="fuse">Max Fusibile Serie</option>
-                                        <option value="ocpr">Corrente Inversa (OCPR)</option>
-                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -781,6 +775,21 @@
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-gamma" step="0.001" value="" placeholder="-0.37">
                                     <span class="unit">%/°C</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="input-row" style="margin-top:1rem">
+                            <div class="input-field">
+                                <label><span class="lbl-icon">🛡️</span> Protezione Modulo (I<sub>rev</sub>)</label>
+                                <div class="input-row" style="gap:4px; margin-top:0;">
+                                    <div class="input-with-unit" style="flex:1;">
+                                        <input type="number" id="in-pv-prot-val" value="25" placeholder="25">
+                                        <span class="unit">A</span>
+                                    </div>
+                                    <select id="in-pv-prot-type" class="m3-select" style="flex:1.5; height:42px;">
+                                        <option value="fuse">Max Fusibile Serie</option>
+                                        <option value="ocpr">Corrente Inversa (OCPR)</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
