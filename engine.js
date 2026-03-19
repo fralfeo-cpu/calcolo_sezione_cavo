@@ -181,7 +181,7 @@ const ElectroEngine = {
 
                     mpptConfig.push({
                         mppt: mpptConfig.length + 1,
-                        moduli: cfg.moduli,
+                        moduli: ns,
                         stringhe: cfg.sEff,
                         ns: ns,
                         vstr: ns * vmp,
