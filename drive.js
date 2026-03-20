@@ -3,7 +3,7 @@
  * Handles Auto-Save and Auto-Load via Google Identity Services (GIS) and REST API.
  */
 
-const CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; // USER MUST REPLACE THIS
+const CLIENT_ID = '973187717006-revvk14cephvokm6vqil5dl19orarqsg.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
 let accessToken = null;
 let tokenClient;
@@ -62,7 +62,7 @@ async function onAuthSuccess() {
  * Triggers a debounced auto-save to Google Drive.
  */
 function triggerAutoSave() {
-    if (!accessToken) return; 
+    if (!accessToken) return;
 
     const statusEl = document.getElementById('cloud-status');
     if (statusEl) statusEl.innerText = "Salvataggio...";
@@ -76,7 +76,7 @@ function triggerAutoSave() {
             console.error("Auto-save failed", e);
             if (statusEl) statusEl.innerText = "❌ Errore Salvataggio";
         }
-    }, 3000); 
+    }, 3000);
 }
 
 /**
