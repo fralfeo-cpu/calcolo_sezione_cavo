@@ -9,14 +9,11 @@ let accessToken = null;
 let tokenClient;
 let saveTimeout;
 
-const FILENAME = 'electrosuite_save.json';
+const FILENAME = 'electrosuite_full_archive.json';
 
 // Initialize GIS
 function initDrive() {
-    if (typeof google === 'undefined') {
-        console.warn("Google Identity Services script not loaded yet.");
-        return;
-    }
+    if (typeof google === 'undefined') return;
 
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
@@ -27,42 +24,70 @@ function initDrive() {
                 return;
             }
             accessToken = tokenResponse.access_token;
+            // Save token for persistence
+            localStorage.setItem('drive_access_token', accessToken);
+            localStorage.setItem('drive_token_expires', Date.now() + (tokenResponse.expires_in * 1000));
+            
             onAuthSuccess();
         },
     });
 
+    // Try persistent login
+    const savedToken = localStorage.getItem('drive_access_token');
+    const expires = localStorage.getItem('drive_token_expires');
+    if (savedToken && expires && Date.now() < parseInt(expires)) {
+        accessToken = savedToken;
+        onAuthSuccess();
+    }
+
     const loginBtn = document.getElementById('btn-drive-login');
     if (loginBtn) {
         loginBtn.onclick = () => {
-            if (accessToken === null) {
-                tokenClient.requestAccessToken({ prompt: 'consent' });
-            } else {
-                tokenClient.requestAccessToken({ prompt: '' });
-            }
+            tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
         };
+    }
+
+    const logoutBtn = document.getElementById('btn-drive-logout');
+    if (logoutBtn) {
+        logoutBtn.onclick = handleLogout;
     }
 }
 
 async function onAuthSuccess() {
-    // Hide login button, show status
     const loginBtn = document.getElementById('btn-drive-login');
+    const logoutBtn = document.getElementById('btn-drive-logout');
     const statusEl = document.getElementById('cloud-status');
+    
     if (loginBtn) loginBtn.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'flex';
     if (statusEl) {
         statusEl.style.display = 'inline-block';
-        statusEl.innerText = "Caricamento...";
+        statusEl.innerText = "Sincronizzazione...";
     }
 
-    // Auto-Load on start
     await loadFromDrive();
     if (statusEl) statusEl.innerText = "☁️ Sincronizzato";
+    if (window.lucide) lucide.createIcons();
 }
 
-/**
- * Triggers a debounced auto-save to Google Drive.
- */
+function handleLogout() {
+    accessToken = null;
+    localStorage.removeItem('drive_access_token');
+    localStorage.removeItem('drive_token_expires');
+    
+    const loginBtn = document.getElementById('btn-drive-login');
+    const logoutBtn = document.getElementById('btn-drive-logout');
+    const statusEl = document.getElementById('cloud-status');
+    
+    if (loginBtn) loginBtn.style.display = 'flex';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    if (statusEl) statusEl.style.display = 'none';
+    
+    if (window.lucide) lucide.createIcons();
+}
+
 function triggerAutoSave() {
-    if (!accessToken) return;
+    if (!accessToken) return; 
 
     const statusEl = document.getElementById('cloud-status');
     if (statusEl) statusEl.innerText = "Salvataggio...";
@@ -74,27 +99,31 @@ function triggerAutoSave() {
             if (statusEl) statusEl.innerText = "☁️ Salvato";
         } catch (e) {
             console.error("Auto-save failed", e);
-            if (statusEl) statusEl.innerText = "❌ Errore Salvataggio";
+            if (statusEl) statusEl.innerText = "❌ Errore";
+            if (e.message.includes('401')) {
+                accessToken = null;
+                const loginBtn = document.getElementById('btn-drive-login');
+                if (loginBtn) loginBtn.style.display = 'flex';
+                const logoutBtn = document.getElementById('btn-drive-logout');
+                if (logoutBtn) logoutBtn.style.display = 'none';
+            }
         }
-    }, 3000);
+    }, 3000); 
 }
 
-/**
- * Saves the current application state (form values) to Google Drive.
- */
 async function saveToDrive() {
     if (!accessToken) return;
 
-    // Use current buildUiState from app.js if available
-    const uiState = typeof buildUiState === 'function' ? buildUiState() : {};
-    const data = JSON.stringify(uiState);
-
-    const metadata = {
-        name: FILENAME,
-        parents: ['appDataFolder']
+    // Package ONLY Archive and Presets (No UI State as requested)
+    const fullData = {
+        archivio: localStorage.getItem('archivio_elettrosuite'),
+        presets_inverter: localStorage.getItem('preset_inverter'),
+        presets_pannello: localStorage.getItem('preset_pannello'),
+        timestamp: Date.now()
     };
 
-    // First, find if the file exists to get the ID for update, or create new
+    const data = JSON.stringify(fullData);
+    const metadata = { name: FILENAME, parents: ['appDataFolder'] };
     const fileId = await findFileId();
 
     let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
@@ -106,17 +135,10 @@ async function saveToDrive() {
     }
 
     const boundary = 'foo_bar_baz';
-    const delimiter = "\r\n--" + boundary + "\r\n";
-    const close_delim = "\r\n--" + boundary + "--";
-
     const multipartRequestBody =
-        delimiter +
-        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-        JSON.stringify(metadata) +
-        delimiter +
-        'Content-Type: application/json\r\n\r\n' +
-        data +
-        close_delim;
+        `\r\n--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}` +
+        `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${data}` +
+        `\r\n--${boundary}--`;
 
     const response = await fetch(url, {
         method: method,
@@ -127,36 +149,30 @@ async function saveToDrive() {
         body: multipartRequestBody
     });
 
-    if (!response.ok) {
-        const err = await response.text();
-        throw new Error('Drive upload failed: ' + err);
-    }
+    if (!response.ok) throw new Error('Drive upload failed: ' + response.status);
 }
 
-/**
- * Loads the application state from Google Drive and populates the form.
- */
 async function loadFromDrive() {
     if (!accessToken) return;
-
     try {
         const fileId = await findFileId();
-        if (!fileId) {
-            console.log("No cloud save found.");
-            return;
-        }
+        if (!fileId) return;
 
         const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
             headers: { 'Authorization': 'Bearer ' + accessToken }
         });
 
         if (response.ok) {
-            const cloudState = await response.json();
-            if (typeof applyCloudState === 'function') {
-                applyCloudState(cloudState);
-            } else {
-                console.error("applyCloudState not defined in app.js");
-            }
+            const cloudData = await response.json();
+            
+            // Sync LocalStorage only if data exists in cloud
+            if (cloudData.archivio) localStorage.setItem('archivio_elettrosuite', cloudData.archivio);
+            if (cloudData.presets_inverter) localStorage.setItem('preset_inverter', cloudData.presets_inverter);
+            if (cloudData.presets_pannello) localStorage.setItem('preset_pannello', cloudData.presets_pannello);
+            
+            // Refresh Archive View / Presets
+            if (typeof loadArchive === 'function') loadArchive();
+            if (typeof initPresets === 'function') initPresets();
         }
     } catch (e) {
         console.error("Error loading from Drive", e);

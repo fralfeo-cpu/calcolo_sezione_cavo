@@ -373,26 +373,6 @@ function initUI() {
         input.addEventListener('change', (e) => importArchivioJSON(e.target.dataset.type, e.target));
     });
 
-    // ── CLOUD AUTO-SAVE TRIGGER ─────────────────────────────────
-    // Attach triggerAutoSave to ANY change in primary inputs
-    document.addEventListener('input', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
-            if (typeof triggerAutoSave === 'function') triggerAutoSave();
-        }
-    });
-    document.addEventListener('change', (e) => {
-        if (e.target.tagName === 'SELECT' || e.target.type === 'checkbox') {
-            if (typeof triggerAutoSave === 'function') triggerAutoSave();
-        }
-    });
-    // For pills (which are buttons)
-    document.querySelectorAll('.pill').forEach(pill => {
-        pill.addEventListener('click', () => {
-            setTimeout(() => { // Small delay to wait for .active class swap
-                if (typeof triggerAutoSave === 'function') triggerAutoSave();
-            }, 50);
-        });
-    });
 }
 
 function resetModule(targetId) {
@@ -1161,6 +1141,7 @@ function getPresets(type) {
 
 function savePresets(type, presets) {
     localStorage.setItem(`preset_${type}`, JSON.stringify(presets));
+    if (typeof triggerAutoSave === 'function') triggerAutoSave();
 }
 
 function initPresets() {
@@ -1475,6 +1456,7 @@ function saveProject(isUpdate = false) {
         }
 
         loadArchive();
+        if (typeof triggerAutoSave === 'function') triggerAutoSave();
     } catch (err) {
         console.error('Errore salvataggio:', err);
         document.getElementById('modal-save').classList.remove('open');
@@ -1693,6 +1675,7 @@ function deleteProj(id) {
     p = p.filter(x => x.id !== Number(id));
     localStorage.setItem('archivio_elettrosuite', JSON.stringify(p));
     loadArchive();
+    if (typeof triggerAutoSave === 'function') triggerAutoSave();
 }
 
 // Global scope window wrappers for HTML inline onclick within Preset Archive lists
@@ -1739,6 +1722,7 @@ function clearArchiveByType(type) {
         localStorage.setItem('archivio_elettrosuite', JSON.stringify(data));
     }
     loadArchive();
+    if (typeof triggerAutoSave === 'function') triggerAutoSave();
 }
 
 function clearArchive() {
@@ -1805,6 +1789,7 @@ function importArchivioJSON(type, inputElement) {
             }
             showToast("Importazione completata con successo!");
             loadArchive(); // Refresh currently viewed archive
+            if (typeof triggerAutoSave === 'function') triggerAutoSave();
         } catch (err) {
             alert("Errore nell'importazione: il file JSON potrebbe essere corrotto o incompatibile.\n" + err);
         }

@@ -31,8 +31,11 @@
                 <div id="cloud-control" style="display:flex; align-items:center; gap:10px; margin-left: auto; margin-right: 8px;">
                     <span id="cloud-status" style="display:none; font-size: 0.85rem; color: var(--on-surface-variant); font-weight: 500; transition: all 0.3s ease;">☁️ Sincronizzato</span>
                     <button class="btn-google" id="btn-drive-login" title="Accedi con Google Drive">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="G" style="width:16px;height:16px;">
+                        <i data-lucide="log-in" style="width:16px;height:16px;"></i>
                         <span>Accedi</span>
+                    </button>
+                    <button class="icon-btn" id="btn-drive-logout" title="Esci dal Cloud" style="display:none; color: var(--error);">
+                        <i data-lucide="log-out"></i>
                     </button>
                 </div>
 

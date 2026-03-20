@@ -233,6 +233,11 @@ body {
     animation: fadeInStatus 0.5s ease-out;
 }
 
+#btn-drive-logout:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626 !important;
+}
+
 @keyframes fadeInStatus {
     from { opacity: 0; transform: translateX(10px); }
     to { opacity: 1; transform: translateX(0); }
