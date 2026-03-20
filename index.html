@@ -13,6 +13,8 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="drive.js" defer></script>
 </head>
 
 <body>
@@ -25,6 +27,15 @@
                     <h1>ElectroSuite</h1>
                     <div class="badge">v4.0</div>
                 </div>
+                
+                <div id="cloud-control" style="display:flex; align-items:center; gap:10px; margin-left: auto; margin-right: 8px;">
+                    <span id="cloud-status" style="display:none; font-size: 0.85rem; color: var(--on-surface-variant); font-weight: 500; transition: all 0.3s ease;">☁️ Sincronizzato</span>
+                    <button class="btn-google" id="btn-drive-login" title="Accedi con Google Drive">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="G" style="width:16px;height:16px;">
+                        <span>Accedi</span>
+                    </button>
+                </div>
+
                 <button class="icon-btn" id="btn-theme-toggle" title="Cambia Tema">
                     <i data-lucide="moon"></i>
                 </button>

@@ -372,6 +372,27 @@ function initUI() {
     document.querySelectorAll('.input-import-json').forEach(input => {
         input.addEventListener('change', (e) => importArchivioJSON(e.target.dataset.type, e.target));
     });
+
+    // ── CLOUD AUTO-SAVE TRIGGER ─────────────────────────────────
+    // Attach triggerAutoSave to ANY change in primary inputs
+    document.addEventListener('input', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+            if (typeof triggerAutoSave === 'function') triggerAutoSave();
+        }
+    });
+    document.addEventListener('change', (e) => {
+        if (e.target.tagName === 'SELECT' || e.target.type === 'checkbox') {
+            if (typeof triggerAutoSave === 'function') triggerAutoSave();
+        }
+    });
+    // For pills (which are buttons)
+    document.querySelectorAll('.pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+            setTimeout(() => { // Small delay to wait for .active class swap
+                if (typeof triggerAutoSave === 'function') triggerAutoSave();
+            }, 50);
+        });
+    });
 }
 
 function resetModule(targetId) {
@@ -2729,3 +2750,71 @@ function loadExternalScripts() {
 if (window.lucide) {
     window.lucide.createIcons();
 }
+
+/**
+ * Global function called by drive.js to apply cloud saved state.
+ */
+window.applyCloudState = function(ui) {
+    if(!ui) return;
+    
+    // 1. Resolve which section (priority to PV inputs)
+    const isPv = ui['in-pv-ntot'] !== undefined || ui['in-pv-vmaxdc'] !== undefined;
+    const targetSection = isPv ? 'sec-fotovoltaico' : 'sec-calc';
+    
+    // Switch to target tab
+    document.querySelectorAll('.view-section').forEach(sec => sec.classList.add('hidden'));
+    const secEl = document.getElementById(targetSection);
+    if (secEl) {
+        secEl.classList.remove('hidden');
+        history.pushState({ section: targetSection }, '', '#' + targetSection);
+    }
+
+    // 2. Set Pills (Only for Cable Calc)
+    if (!isPv) {
+        ['pill-sys', 'pill-input-type', 'pill-tens', 'pill-mat', 'pill-prot'].forEach(pillId => {
+            if (ui[pillId]) {
+                const group = document.getElementById(pillId);
+                if (group) {
+                    group.querySelectorAll('.pill').forEach(btn => btn.classList.remove('active'));
+                    const targetBtn = group.querySelector(`[data-val="${ui[pillId]}"]`);
+                    if (targetBtn) targetBtn.classList.add('active');
+                }
+            }
+        });
+
+        const selIso = document.getElementById('sel-iso');
+        if (selIso && ui['sel-iso']) selIso.value = ui['sel-iso'];
+        const selUnit = document.getElementById('sel-unit-potenza');
+        if (selUnit && ui['sel-unit-potenza']) selUnit.value = ui['sel-unit-potenza'];
+
+        updateLists();
+    }
+
+    // 3. Set all saved inputs and selects, then fire change events
+    Object.keys(ui).forEach(key => {
+        const el = document.getElementById(key);
+        if (el && el.tagName === 'INPUT' && el.type !== 'checkbox') {
+            el.value = ui[key];
+            if (isPv) el.dispatchEvent(new Event('input', { bubbles: true })); 
+        } else if (el && el.tagName === 'SELECT') {
+            el.value = ui[key];
+            if (el.classList.contains('upgraded')) syncCustomSelects(key);
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            if (isPv) el.dispatchEvent(new Event('input', { bubbles: true }));
+        } else if (key === 'ch-auto-parallel') {
+            const check = document.getElementById('ch-auto-parallel');
+            if (check) { 
+                check.checked = ui[key]; 
+                check.dispatchEvent(new Event('change', { bubbles: true })); 
+            }
+        }
+    });
+
+    // 4. Validate and recalculate
+    if (isPv) {
+        if (typeof calculatePV === 'function') calculatePV();
+    } else {
+        if (typeof validateForm === 'function') validateForm('sec-calc');
+        if (typeof performCalculation === 'function') performCalculation();
+    }
+};

@@ -201,6 +201,48 @@ body {
     transition: all 0.3s ease;
 }
 
+/* ── Google Drive & Cloud UI ───────────────── */
+.btn-google {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-1);
+    border: 1px solid var(--outline);
+    color: var(--on-surface);
+    padding: 6px 14px;
+    border-radius: var(--r-pill);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-xs);
+}
+
+.btn-google:hover {
+    background: var(--surface-2);
+    border-color: var(--outline-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-google:active {
+    transform: translateY(0);
+}
+
+#cloud-status {
+    animation: fadeInStatus 0.5s ease-out;
+}
+
+@keyframes fadeInStatus {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+body.dark-mode .btn-google {
+    background: var(--surface-2);
+    border-color: var(--outline);
+}
+
 .top-bar h1 {
     font-size: 1.35rem;
     font-weight: 800;
