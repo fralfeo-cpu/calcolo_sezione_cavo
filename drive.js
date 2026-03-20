@@ -100,12 +100,9 @@ function triggerAutoSave() {
         } catch (e) {
             console.error("Auto-save failed", e);
             if (statusEl) statusEl.innerText = "❌ Errore";
+            alert("Errore sincronizzazione Cloud: " + e.message);
             if (e.message.includes('401')) {
-                accessToken = null;
-                const loginBtn = document.getElementById('btn-drive-login');
-                if (loginBtn) loginBtn.style.display = 'flex';
-                const logoutBtn = document.getElementById('btn-drive-logout');
-                if (logoutBtn) logoutBtn.style.display = 'none';
+                handleLogout();
             }
         }
     }, 3000); 
@@ -134,11 +131,15 @@ async function saveToDrive() {
         method = 'PATCH';
     }
 
-    const boundary = 'foo_bar_baz';
+    const boundary = '-------314159265358979323846';
     const multipartRequestBody =
-        `\r\n--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}` +
-        `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${data}` +
-        `\r\n--${boundary}--`;
+        '--' + boundary + '\r\n' +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        JSON.stringify(metadata) + '\r\n' +
+        '--' + boundary + '\r\n' +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        data + '\r\n' +
+        '--' + boundary + '--';
 
     const response = await fetch(url, {
         method: method,
@@ -149,7 +150,10 @@ async function saveToDrive() {
         body: multipartRequestBody
     });
 
-    if (!response.ok) throw new Error('Drive upload failed: ' + response.status);
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Drive ${method} failed (${response.status}): ${errorText.substring(0, 100)}`);
+    }
 }
 
 async function loadFromDrive() {

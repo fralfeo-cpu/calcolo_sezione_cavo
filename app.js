@@ -1402,6 +1402,17 @@ function buildSafeData(uiState) {
     };
 }
 
+function getArchive() {
+    try {
+        const stored = localStorage.getItem('archivio_elettrosuite');
+        const p = stored ? JSON.parse(stored) : [];
+        return Array.isArray(p) ? p : [];
+    } catch (e) {
+        console.error("Archive parsing error:", e);
+        return [];
+    }
+}
+
 function saveProject(isUpdate = false) {
     try {
         if (!currentResult || currentResult.status !== 'OK') {
@@ -1411,7 +1422,7 @@ function saveProject(isUpdate = false) {
 
         const uiState = buildUiState();
         const safeData = buildSafeData(uiState);
-        let p = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+        let p = getArchive();
 
         if (isUpdate && idProgettoAttivo !== null) {
             // ── UPDATE MODE ────────────────────────────────────────────────
@@ -1482,7 +1493,7 @@ function loadArchive() {
     listPreset.innerHTML = '';
 
     // -- Render Progetti (Cavi / FV) --
-    let data = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+    let data = getArchive();
     let projCavi = data.filter(p => !p.data?.type || p.data.type !== 'pv');
     let projFv = data.filter(p => p.data?.type === 'pv');
 
@@ -1671,7 +1682,7 @@ function restoreProject(id) {
 
 function deleteProj(id) {
     if (!confirm("Cancellare il progetto?")) return;
-    let p = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+    let p = getArchive();
     p = p.filter(x => x.id !== Number(id));
     localStorage.setItem('archivio_elettrosuite', JSON.stringify(p));
     loadArchive();
@@ -1716,7 +1727,7 @@ function clearArchiveByType(type) {
         initPresets();
     } else {
         if (!confirm(`Vuoi svuotare i progetti ${type === 'cavi' ? 'Linee' : 'Fotovoltaico'}?`)) return;
-        let data = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+        let data = getArchive();
         if (type === 'cavi') data = data.filter(p => p.data?.type === 'pv');
         else if (type === 'fv') data = data.filter(p => !p.data?.type || p.data.type !== 'pv');
         localStorage.setItem('archivio_elettrosuite', JSON.stringify(data));
@@ -1742,7 +1753,7 @@ function exportArchivioJSON(type) {
             alert("Nessun preset da esportare."); return;
         }
     } else {
-        let allProjs = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+        let allProjs = getArchive();
         if (type === 'cavi') exportData = allProjs.filter(p => !p.data?.type || p.data.type !== 'pv');
         else if (type === 'fv') exportData = allProjs.filter(p => p.data?.type === 'pv');
 
@@ -1783,7 +1794,7 @@ function importArchivioJSON(type, inputElement) {
                 initPresets();
             } else {
                 if (!Array.isArray(imported)) throw new Error("Formato progetto JSON invalido");
-                let oldProjs = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+                let oldProjs = getArchive();
                 // Create new unified array using spread
                 localStorage.setItem('archivio_elettrosuite', JSON.stringify([...oldProjs, ...imported]));
             }
