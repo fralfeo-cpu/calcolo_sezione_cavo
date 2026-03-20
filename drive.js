@@ -120,8 +120,11 @@ async function saveToDrive() {
     };
 
     const data = JSON.stringify(fullData);
-    const metadata = { name: FILENAME, parents: ['appDataFolder'] };
     const fileId = await findFileId();
+    const metadata = { name: FILENAME };
+    if (!fileId) {
+        metadata.parents = ['appDataFolder'];
+    }
 
     let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
     let method = 'POST';
