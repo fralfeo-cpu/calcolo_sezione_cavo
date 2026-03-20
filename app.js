@@ -1066,7 +1066,7 @@ function generatePVResultHTML(result) {
             if (!isAsymmetric) return; 
         });
         if (!isAsymmetric && result.mpptConfig.length > 1) {
-            dynContainer.innerHTML += `<div class="mppt-warning" style="color:var(--success);border-color:var(--success);"><i data-lucide="check-circle-2" style="width:13px;height:13px;"></i> Tutte le ${result.nmppt} stringhe identiche</div>`;
+            dynContainer.innerHTML += `<div class="mppt-warning" style="color:var(--success);border-color:var(--success);"><i data-lucide="check-circle-2" style="width:13px;height:13px;"></i> Tutti i ${result.nmppt} MPPT identici</div>`;
         }
         if (window.lucide) lucide.createIcons();
     }
