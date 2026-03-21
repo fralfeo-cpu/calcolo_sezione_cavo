@@ -748,7 +748,7 @@
                             <div class="input-field">
                                 <label for="fv-nstringhe"><span class="lbl-icon">🔗</span> Stringhe in parallelo per MPPT</label>
                                 <div class="input-with-unit">
-                                    <input type="number" id="fv-nstringhe" value="1" min="1" step="1">
+                                    <input type="number" id="fv-nstringhe" value="" placeholder="1" min="1" step="1">
                                     <span class="unit">n°</span>
                                 </div>
                             </div>
@@ -833,12 +833,13 @@
                         <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
                                 <label><span class="lbl-icon">🛡️</span> Protezione Modulo (I<sub>rev</sub>)</label>
-                                <div class="input-row" style="gap:4px; margin-top:0;">
+                                <div class="input-row" style="gap:12px; margin-top:0;">
                                     <div class="input-with-unit" style="flex:1;">
-                                        <input type="number" id="in-pv-prot-val" value="25" placeholder="25">
+                                        <input type="number" id="in-pv-prot-val" value="" placeholder="25">
                                         <span class="unit">A</span>
                                     </div>
-                                    <select id="in-pv-prot-type" class="m3-select" style="flex:1.5; height:42px;">
+                                    <select id="in-pv-prot-type" class="m3-select" style="flex:1.5;">
+                                        <option value="" disabled selected>Seleziona...</option>
                                         <option value="fuse">Max Fusibile Serie</option>
                                         <option value="ocpr">Corrente Inversa (OCPR)</option>
                                     </select>

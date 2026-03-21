@@ -8,9 +8,9 @@ const POSA_LABELS = {
     "aria_tubo_B1": "B1 - Cavi UNIPOLARI in tubo o canale a vista, oppure posati entro cavità/intercapedini",
     "aria_tubo_B2": "B2 - Cavi MULTIPOLARI in tubo protettivo annegato nella muratura (es. tracce a muro)",
     "aria_muro_C": "C - Cavi MULTIPOLARI con guaina fissati direttamente a parete o soffitto (strato semplice)",
-    "interrato_tubo_D1_multi": "D1 - Cavi MULTIPOLARI in tubazione interrata",
-    "interrato_tubo_D1_uni": "D1 - Cavi UNIPOLARI in tubazione interrata",
-    "interrato_diretto_D2": "D2 - Cavi con guaina posati direttamente a contatto con il terreno",
+    "interrato_tubo_D1_multi": "D1B - Cavi MULTIPOLARI in singola tubazione interrata",
+    "interrato_tubo_D1_uni": "D1A - Cavi UNIPOLARI in singola tubazione interrata",
+    "interrato_diretto_D2": "D2 - Cavi UNIPOLARI in tubazioni distinte (un conduttore per tubazione) o direttamente annegati nel terreno",
     "aria_passerella_E": "E - Cavi MULTIPOLARI su passerella forata, scala o mensole",
     "aria_passerella_F": "F - Cavi UNIPOLARI a contatto tra loro su passerella forata",
     "aria_passerella_G": "G - Cavi UNIPOLARI distanziati (spazio > diametro) su passerella forata",
@@ -260,17 +260,59 @@ function initUI() {
         const nCavi = parseInt(document.getElementById('sel-n-cavi')?.value) || 1;
         const isAuto = document.getElementById('ch-auto-parallel')?.checked || false;
         const wrap = document.getElementById('wrap-parallel-spacing');
-        if (wrap) {
+        
+        const posa = document.getElementById('sel-posa')?.value || '';
+        const isInterrato = posa.includes('interrato');
+        
+        // Disable K2 selection when parallel is enabled
+        const selGroup = document.getElementById('sel-group');
+        if (selGroup) {
             if (nCavi > 1 || isAuto) {
+                selGroup.value = "1";
+                selGroup.disabled = true;
+                selGroup.parentElement.style.opacity = '0.5';
+            } else {
+                selGroup.disabled = false;
+                selGroup.parentElement.style.opacity = '1';
+            }
+            if (typeof syncCustomSelects === 'function') syncCustomSelects('sel-group');
+        }
+
+        const wrapDistanza = document.getElementById('wrap-distanza');
+        if (wrapDistanza) {
+            wrapDistanza.style.display = (isInterrato && !(nCavi > 1 || isAuto)) ? 'block' : 'none';
+        }
+
+        if (wrap) {
+            if (isInterrato && (nCavi > 1 || isAuto)) {
+                const sel = document.getElementById('sel-parallel-spacing');
+                const curVal = sel.value;
+                sel.innerHTML = `
+                    <option value="a_contatto">A contatto</option>
+                    <option value="0.25">Distanziati 0,25 m</option>
+                    <option value="0.5">Distanziati 0,50 m</option>
+                    <option value="1.0">Distanziati 1,00 m</option>
+                `;
+                if (Array.from(sel.options).some(o => o.value === curVal)) {
+                    sel.value = curVal;
+                } else {
+                    sel.selectedIndex = 0;
+                }
+                
+                const wrapper = sel.nextElementSibling;
+                if (wrapper && wrapper.classList.contains('custom-select-wrapper')) {
+                    wrapper.remove();
+                }
+                sel.classList.remove('upgraded');
+                if (typeof upgradeSelects === 'function') upgradeSelects();
+
                 wrap.classList.remove('hidden-anim');
                 wrap.style.display = 'block';
-                // Trigger reflow for animation
                 void wrap.offsetWidth;
                 wrap.classList.add('visible-anim');
             } else {
                 wrap.classList.remove('visible-anim');
                 wrap.classList.add('hidden-anim');
-                // Wait for animation to finish before hiding display
                 setTimeout(() => {
                     if (wrap.classList.contains('hidden-anim')) {
                         wrap.style.display = 'none';
@@ -457,17 +499,25 @@ function resetModule(targetId) {
 
     // Reset numeric inputs
     section.querySelectorAll('input[type="number"], input[type="text"]').forEach(input => {
-        if (input.id === 'in-cosphi') {
-            input.value = "0.9";
-        } else if (input.id === 'in-dvmax') {
-            input.value = "4";
-        } else if (input.id === 'in-v') {
-            const isTri = document.querySelector('#pill-sys .active')?.getAttribute('data-val') === 'tri';
-            const isMT = document.querySelector('#pill-tens .active')?.getAttribute('data-val') === 'mt_media_tensione';
-            if (isMT) input.value = "20000";
-            else input.value = isTri ? "400" : "230";
+        if (targetId === 'sec-fotovoltaico') {
+            if (input.id === 'in-pv-nmppt' || input.id === 'fv-nstringhe') {
+                input.value = "1";
+            } else {
+                input.value = "0";
+            }
         } else {
-            input.value = "";
+            if (input.id === 'in-cosphi') {
+                input.value = "0.9";
+            } else if (input.id === 'in-dvmax') {
+                input.value = "4";
+            } else if (input.id === 'in-v') {
+                const isTri = document.querySelector('#pill-sys .active')?.getAttribute('data-val') === 'tri';
+                const isMT = document.querySelector('#pill-tens .active')?.getAttribute('data-val') === 'mt_media_tensione';
+                if (isMT) input.value = "20000";
+                else input.value = isTri ? "400" : "230";
+            } else {
+                input.value = "";
+            }
         }
     });
 
@@ -478,6 +528,10 @@ function resetModule(targetId) {
             select.value = "1";
         } else if (select.id === 'sel-iso') {
             select.selectedIndex = 0;
+        } else if (select.id === 'sel-depth') {
+            select.value = "0.8";
+        } else if (select.id === 'sel-res') {
+            select.value = "1.5";
         } else {
             select.selectedIndex = 0; // The disabled placeholder
         }
@@ -617,7 +671,8 @@ function updateLists() {
 
     document.getElementById('lbl-temp').textContent = env === 'terreno' ? 'Temperatura Terreno (°C) [K1]' : 'Temperatura Aria (°C) [K1]';
     document.getElementById('wrap-terra').style.display = env === 'terreno' ? 'flex' : 'none';
-    document.getElementById('wrap-distanza').style.display = env === 'terreno' ? 'block' : 'none';
+    const wrapDistanza = document.getElementById('wrap-distanza');
+    if (wrapDistanza) wrapDistanza.style.display = 'none'; // Re-eval in updateParallelSpacingVisibility
 
     // Update factor lists
     const kData = DB.fattori_correzione;
@@ -651,6 +706,9 @@ function updateLists() {
         } else {
             groups = Object.keys(k2DataFamily);
         }
+        if (!groups.includes("1")) {
+            groups.unshift("1");
+        }
     }
 
     groupSelect.innerHTML = groups.map(g => {
@@ -666,17 +724,21 @@ function updateLists() {
         const isSelected = currentDepth ? (d === currentDepth) : (d === '0.8');
         return `<option value="${d}" ${isSelected ? 'selected' : ''}>${d}</option>`;
     }).join('');
+    if (!currentDepth && depthSelect.options.length > 0) depthSelect.value = '0.8';
 
     const resSelect = document.getElementById('sel-res');
     const currentRes = resSelect.value;
-    const res = Object.keys(kData.k4_resistivita_terreno || {});
+    const resData = kData.k4_resistivita_terreno?.unipolari || {};
+    const res = Object.keys(resData);
     resSelect.innerHTML = res.map(r => {
-        const isSelected = currentRes ? (r === currentRes) : false;
+        const isSelected = currentRes ? (r === currentRes) : (r === '1.5');
         return `<option value="${r}" ${isSelected ? 'selected' : ''}>${r}</option>`;
     }).join('');
+    if (!currentRes && resSelect.options.length > 0) resSelect.value = '1.5';
 
     // Quick DV Sections is now globally populated via populateQuickCheckSections() on load
 
+    updateParallelSpacingVisibility();
     upgradeSelects();
 }
 
@@ -794,7 +856,7 @@ function syncCustomSelects(selectId) {
         protType: document.querySelector('#pill-prot .active').getAttribute('data-val'),
         temp: document.getElementById('sel-temp').value,
         group: document.getElementById('sel-group').value,
-        distanza: document.getElementById('sel-distanza')?.value || 'a_contatto',
+        distanza: (parseInt(document.getElementById('sel-n-cavi')?.value) > 1 || document.getElementById('ch-auto-parallel')?.checked) ? (document.getElementById('sel-parallel-spacing')?.value || 'a_contatto') : (document.getElementById('sel-distanza')?.value || 'a_contatto'),
         depth: document.getElementById('sel-depth')?.value || '0.8',
         res: document.getElementById('sel-res')?.value || '1.0'
     };
@@ -1445,7 +1507,7 @@ const PV_INPUT_IDS_ALL = ['in-pv-vmaxdc', 'in-pv-nmppt', 'in-pv-imax', 'fv-nstri
 
 function buildUiState() {
     const uiState = {};
-    const selects = ['sel-iso', 'sel-posa', 'sel-temp', 'sel-group', 'sel-depth', 'sel-res', 'sel-n-cavi', 'sel-unit-potenza', 'sel-parallel-spacing'];
+    const selects = ['sel-iso', 'sel-posa', 'sel-temp', 'sel-group', 'sel-distanza', 'sel-depth', 'sel-res', 'sel-n-cavi', 'sel-unit-potenza', 'sel-parallel-spacing'];
     const inputIds = ['in-v', 'in-l', 'in-load', 'in-cosphi', 'in-dvmax', ...PV_INPUT_IDS_ALL];
     const pills = ['pill-sys', 'pill-input-type', 'pill-tens', 'pill-mat', 'pill-prot'];
     selects.forEach(id => { const el = document.getElementById(id); if (el) uiState[id] = el.value; });

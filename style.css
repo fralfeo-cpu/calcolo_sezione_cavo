@@ -1025,6 +1025,18 @@ label {
     letter-spacing: 0.01em;
 }
 
+label sub {
+    font-size: 0.75em;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+    bottom: -0.25em;
+    margin: 0 -2px 0 -3px;
+    padding: 0;
+    letter-spacing: normal;
+    font-feature-settings: normal;
+}
+
 .input-field {
     flex: 1 1 240px;
     display: flex;
