@@ -6,37 +6,57 @@ const ElectroEngine = {
     },
 
     getKFactors: function (DB, inputs, nConductors = 1) {
-        const { tens, posa, temp, group, depth, res, spacing } = inputs;
-        // Calcola il moltiplicatore dei paralleli in base alla posa
+        const { tens, posa, temp, group, depth, res, spacing, iso, mat } = inputs;
         const parallelMultiplier = (spacing === 'spaced') ? 1 : nConductors;
-
-        // Correzione MT: usa la tabella a 90C
-        const iso = (tens === 'mt_media_tensione') ? 'epr_xlpe_90C' : inputs.iso;
-        const env = posa && posa.includes('interrato') ? 'terreno' : 'aria';
         const kData = DB.fattori_correzione;
+        const isInterrato = posa && posa.includes('interrato');
 
         let k1 = 1, k2 = 1, k3 = 1, k4 = 1;
         try {
-            if (env === 'terreno') {
+            // Fattore K1 (Temperatura)
+            if (isInterrato) {
                 k1 = kData.k1_temperatura_terreno[iso]?.[temp] || 1;
-                const effGroup = Math.min(parseInt(group) * parallelMultiplier, 5).toString();
-                let matchedK2 = kData.k2_raggruppamento_interrato[effGroup];
-                if (!matchedK2) {
-                    const keys = Object.keys(kData.k2_raggruppamento_interrato).map(Number).sort((a, b) => b - a);
-                    matchedK2 = kData.k2_raggruppamento_interrato[keys[0]];
-                }
-                k2 = matchedK2 || 1;
                 k3 = kData.k3_profondita_interrato[depth] || 1;
-                k4 = kData.k4_resistivita_terreno[res] || 1;
+                
+                // Fattore K4 (Resistività terreno) - Nuova logica Famiglia
+                let fK4 = (tens === 'bt_bassa_tensione') ?
+                    (DB.portate_bt_bassa_tensione[iso]?.[mat]?.[posa]?.famiglia_k4 ||
+                     DB.portate_bt_bassa_tensione[iso]?.['rame']?.[posa]?.famiglia_k4) : "multipolari";
+                
+                if (fK4 && kData.k4_resistivita_terreno[fK4]) {
+                    k4 = kData.k4_resistivita_terreno[fK4][res] || 1;
+                } else {
+                    k4 = kData.k4_resistivita_terreno.multipolari[res] || 1;
+                }
             } else {
                 k1 = kData.k1_temperatura_aria[iso]?.[temp] || 1;
-                const effGroup = Math.min(parseInt(group) * parallelMultiplier, 6).toString();
-                let matchedK2 = kData.k2_raggruppamento_aria[effGroup];
+            }
+
+            // Fattore K2 (Raggruppamento) - Nuova logica basata su Famiglia
+            let famiglia = null;
+            if (tens === 'bt_bassa_tensione') {
+                famiglia = DB.portate_bt_bassa_tensione[iso]?.[mat]?.[posa]?.famiglia_k2 ||
+                           DB.portate_bt_bassa_tensione[iso]?.['rame']?.[posa]?.famiglia_k2;
+            }
+
+            if (famiglia && kData.k2_raggruppamento[famiglia]) {
+                let gData = kData.k2_raggruppamento[famiglia];
+                
+                // Gestione nidificazione per distanza (Interrati)
+                if (isInterrato && typeof gData["a_contatto"] === 'object') {
+                    const distKey = inputs.distanza || "a_contatto";
+                    gData = gData[distKey] || gData["a_contatto"];
+                }
+
+                const effGroup = (parseInt(group) * parallelMultiplier).toString();
+                let matchedK2 = gData[effGroup];
                 if (!matchedK2) {
-                    const keys = Object.keys(kData.k2_raggruppamento_aria).map(Number).sort((a, b) => b - a);
-                    matchedK2 = kData.k2_raggruppamento_aria[keys[0]];
+                    const keys = Object.keys(gData).map(Number).sort((a, b) => b - a);
+                    matchedK2 = gData[keys[0]];
                 }
                 k2 = matchedK2 || 1;
+            } else {
+                k2 = 1; // Default
             }
         } catch (e) { console.error("Errore Fattori K:", e); }
         return { k1, k2, k3, k4, ktot: k1 * k2 * k3 * k4 };
@@ -49,8 +69,12 @@ const ElectroEngine = {
             let ib = (inputType === 'p') ? this.calculateIb(load, v, cosphi, isTri, unitaPotenza === 'kva') : load;
             if (ib <= 0) return { status: 'INVALID_INPUT' };
 
+            const phaseKey = isTri ? 'trifase' : 'monofase';
+            // DRY: For BT, we always use 'rame' as source of truth for base ampacity
+            const effectiveMatKey = (tens === 'bt_bassa_tensione') ? 'rame' : mat;
+
             let portateSchema = (tens === 'bt_bassa_tensione')
-                ? (DB.portate_bt_bassa_tensione[iso]?.[mat]?.[posa] || DB.portate_bt_bassa_tensione[iso]?.['rame']?.[posa])
+                ? (DB.portate_bt_bassa_tensione[iso]?.[effectiveMatKey]?.[posa]?.[phaseKey])
                 : (DB.portate_mt_media_tensione.xlpe_epr_90C?.[mat]?.[posa] || DB.portate_mt_media_tensione.xlpe_epr_90C?.['rame']?.[posa]);
 
             if (!portateSchema) return { status: 'NO_SCHEMA' };
@@ -72,7 +96,16 @@ const ElectroEngine = {
 
                 for (let s of sezioni) {
                     if (!paramElettrici[s]) continue;
-                    const izEff = portateSchema[s] * kF.ktot * N;
+                    
+                    let baseAmpacity = portateSchema[s];
+                    
+                    // DRY Logic: Aluminum in BT is 0.78 * Copper, and starts from 16mmq
+                    if (tens === 'bt_bassa_tensione' && mat === 'alluminio') {
+                        if (parseFloat(s) < 16) continue;
+                        baseAmpacity = Math.round(baseAmpacity * 0.78 * 10) / 10;
+                    }
+
+                    const izEff = baseAmpacity * kF.ktot * N;
 
                     if (izEff >= ib) {
                         if (!firstValidSection) firstValidSection = s;
@@ -181,7 +214,7 @@ const ElectroEngine = {
 
                     mpptConfig.push({
                         mppt: mpptConfig.length + 1,
-                        moduli: cfg.moduli,
+                        moduli: ns,
                         stringhe: cfg.sEff,
                         ns: ns,
                         vstr: ns * vmp,

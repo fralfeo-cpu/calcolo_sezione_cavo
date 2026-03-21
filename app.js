@@ -3,15 +3,17 @@ let currentResult = null;
 let idProgettoAttivo = null; // null = nuovo progetto, altrimenti id da aggiornare
 
 const POSA_LABELS = {
-    "aria_tubo_muro_A1": "Metodo A1 (In tubo entro parete isolante)",
-    "aria_tubo_B1": "Metodo B1 (Cavi unipolari entro tubo su parete o incassati)",
-    "aria_tubo_B2": "Metodo B2 (Cavi multipolari entro tubo su parete o incassati)",
-    "aria_muro_C": "Metodo C (Cavi fissati direttamente a parete o su passerella non perforata)",
-    "interrato_tubo_D1": "Metodo D1 (In tubo protettivo interrato)",
-    "interrato_diretto_D2": "Metodo D2 (Cavi posti direttamente nel terreno)",
-    "aria_passerella_E": "Metodo E (Cavi multipolari su passerella perforata)",
-    "aria_passerella_F": "Metodo F (Cavi unipolari a contatto tra loro su passerella perforata)",
-    "aria_passerella_G": "Metodo G (Cavi unipolari distanziati tra loro su passerella perforata)",
+    "aria_tubo_muro_A1": "A1 - Cavi UNIPOLARI in tubo entro pareti termicamente isolanti (es. cartongesso coibentato)",
+    "aria_tubo_muro_A2": "A2 - Cavi MULTIPOLARI con guaina posati direttamente in pareti termicamente isolanti",
+    "aria_tubo_B1": "B1 - Cavi UNIPOLARI in tubo o canale a vista, oppure posati entro cavità/intercapedini",
+    "aria_tubo_B2": "B2 - Cavi MULTIPOLARI in tubo protettivo annegato nella muratura (es. tracce a muro)",
+    "aria_muro_C": "C - Cavi MULTIPOLARI con guaina fissati direttamente a parete o soffitto (strato semplice)",
+    "interrato_tubo_D1_multi": "D1 - Cavi MULTIPOLARI in tubazione interrata",
+    "interrato_tubo_D1_uni": "D1 - Cavi UNIPOLARI in tubazione interrata",
+    "interrato_diretto_D2": "D2 - Cavi con guaina posati direttamente a contatto con il terreno",
+    "aria_passerella_E": "E - Cavi MULTIPOLARI su passerella forata, scala o mensole",
+    "aria_passerella_F": "F - Cavi UNIPOLARI a contatto tra loro su passerella forata",
+    "aria_passerella_G": "G - Cavi UNIPOLARI distanziati (spazio > diametro) su passerella forata",
     "aria_libera": "Posa in aria su passerelle, mensole o supporti distanziatori",
     "interrato_tubo": "Cavi posati entro tubi o condotti interrati",
     "interrato_diretto": "Cavi posati direttamente nel terreno (con eventuale letto di sabbia)"
@@ -110,6 +112,7 @@ function initUI() {
         }
 
         if (targetId === 'sec-archive') loadArchive();
+        else if (targetId === 'sec-tabelle') renderTabelleNormative();
         else if (targetId !== 'sec-fotovoltaico') resetModule(targetId);
     }
 
@@ -372,7 +375,81 @@ function initUI() {
     document.querySelectorAll('.input-import-json').forEach(input => {
         input.addEventListener('change', (e) => importArchivioJSON(e.target.dataset.type, e.target));
     });
+
 }
+
+// --- Funzioni per Sezione Tabelle Normative ---
+function renderTabelleNormative() {
+    const container = document.getElementById('tabelle-container');
+    if (!container) return;
+    
+    // Evita di renderizzare più volte se già pieno
+    if (container.children.length > 0) return;
+
+    if (typeof TABELLE_NORMATIVE_UI === 'undefined') {
+        container.innerHTML = `<div class="card error"><p>Errore: Dati tabelle non caricati. Verifica il file tabelle_ui.js</p></div>`;
+        return;
+    }
+
+    Object.keys(TABELLE_NORMATIVE_UI).forEach(key => {
+        const tableData = TABELLE_NORMATIVE_UI[key];
+        
+        const card = document.createElement('div');
+        card.className = 'card table-card';
+        
+        const title = document.createElement('h3');
+        title.innerHTML = `<i data-lucide="book" style="width: 20px; height: 20px; color: var(--primary); margin-right: 8px; vertical-align: middle;"></i> ${tableData.titolo}`;
+        
+        const desc = document.createElement('p');
+        desc.className = 'table-desc';
+        desc.textContent = tableData.descrizione;
+        
+        const tableWrapper = document.createElement('div');
+        tableWrapper.className = 'table-responsive';
+        
+        const table = document.createElement('table');
+        table.className = 'normative-table';
+        
+        // Header
+        const thead = document.createElement('thead');
+        const trHead = document.createElement('tr');
+        tableData.colonne.forEach(col => {
+            const th = document.createElement('th');
+            th.textContent = col;
+            trHead.appendChild(th);
+        });
+        thead.appendChild(trHead);
+        
+        // Body
+        const tbody = document.createElement('tbody');
+        tableData.dati.forEach(row => {
+            const tr = document.createElement('tr');
+            row.forEach((cellData, index) => {
+                const td = document.createElement('td');
+                td.textContent = cellData;
+                // Formattazione speciale se è un numero (potrebbe essere necessario uno stile CSS)
+                if (index > 0 && !isNaN(parseFloat(cellData.replace(',', '.')))) {
+                    td.classList.add('numeric-cell');
+                }
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        tableWrapper.appendChild(table);
+        
+        card.appendChild(title);
+        card.appendChild(desc);
+        card.appendChild(tableWrapper);
+        
+        container.appendChild(card);
+    });
+
+    if (window.lucide) lucide.createIcons();
+}
+
 
 function resetModule(targetId) {
     const section = document.getElementById(targetId);
@@ -540,6 +617,7 @@ function updateLists() {
 
     document.getElementById('lbl-temp').textContent = env === 'terreno' ? 'Temperatura Terreno (°C) [K1]' : 'Temperatura Aria (°C) [K1]';
     document.getElementById('wrap-terra').style.display = env === 'terreno' ? 'flex' : 'none';
+    document.getElementById('wrap-distanza').style.display = env === 'terreno' ? 'block' : 'none';
 
     // Update factor lists
     const kData = DB.fattori_correzione;
@@ -558,10 +636,25 @@ function updateLists() {
     // K2 Group
     const groupSelect = document.getElementById('sel-group');
     const currentGroup = groupSelect.value;
-    const groupKey = env === 'terreno' ? 'k2_raggruppamento_interrato' : 'k2_raggruppamento_aria';
-    const groups = Object.keys(kData[groupKey] || {});
+    
+    let famiglia = null;
+    if (tens === 'bt_bassa_tensione' && posa) {
+        famiglia = DB.portate_bt_bassa_tensione[iso]?.[mat]?.[posa]?.famiglia_k2 ||
+                   DB.portate_bt_bassa_tensione[iso]?.['rame']?.[posa]?.famiglia_k2;
+    }
+
+    const k2DataFamily = (famiglia && kData.k2_raggruppamento[famiglia]) ? kData.k2_raggruppamento[famiglia] : null;
+    let groups = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]; // Default consistent with aria
+    if (k2DataFamily) {
+        if (typeof k2DataFamily["a_contatto"] === 'object') {
+            groups = Object.keys(k2DataFamily["a_contatto"]);
+        } else {
+            groups = Object.keys(k2DataFamily);
+        }
+    }
+
     groupSelect.innerHTML = groups.map(g => {
-        const isSelected = currentGroup ? (g === currentGroup) : false;
+        const isSelected = currentGroup ? (g === currentGroup) : (g === "1");
         return `<option value="${g}" ${isSelected ? 'selected' : ''}>${g}</option>`;
     }).join('');
 
@@ -701,6 +794,7 @@ function syncCustomSelects(selectId) {
         protType: document.querySelector('#pill-prot .active').getAttribute('data-val'),
         temp: document.getElementById('sel-temp').value,
         group: document.getElementById('sel-group').value,
+        distanza: document.getElementById('sel-distanza')?.value || 'a_contatto',
         depth: document.getElementById('sel-depth')?.value || '0.8',
         res: document.getElementById('sel-res')?.value || '1.0'
     };
@@ -1066,7 +1160,7 @@ function generatePVResultHTML(result) {
             if (!isAsymmetric) return; 
         });
         if (!isAsymmetric && result.mpptConfig.length > 1) {
-            dynContainer.innerHTML += `<div class="mppt-warning" style="color:var(--success);border-color:var(--success);"><i data-lucide="check-circle-2" style="width:13px;height:13px;"></i> Tutte le ${result.nmppt} stringhe identiche</div>`;
+            dynContainer.innerHTML += `<div class="mppt-warning" style="color:var(--success);border-color:var(--success);"><i data-lucide="check-circle-2" style="width:13px;height:13px;"></i> Tutti i ${result.nmppt} MPPT identici</div>`;
         }
         if (window.lucide) lucide.createIcons();
     }
@@ -1140,6 +1234,7 @@ function getPresets(type) {
 
 function savePresets(type, presets) {
     localStorage.setItem(`preset_${type}`, JSON.stringify(presets));
+    if (typeof triggerAutoSave === 'function') triggerAutoSave();
 }
 
 function initPresets() {
@@ -1400,6 +1495,17 @@ function buildSafeData(uiState) {
     };
 }
 
+function getArchive() {
+    try {
+        const stored = localStorage.getItem('archivio_elettrosuite');
+        const p = stored ? JSON.parse(stored) : [];
+        return Array.isArray(p) ? p : [];
+    } catch (e) {
+        console.error("Archive parsing error:", e);
+        return [];
+    }
+}
+
 function saveProject(isUpdate = false) {
     try {
         if (!currentResult || currentResult.status !== 'OK') {
@@ -1409,7 +1515,7 @@ function saveProject(isUpdate = false) {
 
         const uiState = buildUiState();
         const safeData = buildSafeData(uiState);
-        let p = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+        let p = getArchive();
 
         if (isUpdate && idProgettoAttivo !== null) {
             // ── UPDATE MODE ────────────────────────────────────────────────
@@ -1454,6 +1560,7 @@ function saveProject(isUpdate = false) {
         }
 
         loadArchive();
+        if (typeof triggerAutoSave === 'function') triggerAutoSave();
     } catch (err) {
         console.error('Errore salvataggio:', err);
         document.getElementById('modal-save').classList.remove('open');
@@ -1479,7 +1586,7 @@ function loadArchive() {
     listPreset.innerHTML = '';
 
     // -- Render Progetti (Cavi / FV) --
-    let data = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+    let data = getArchive();
     let projCavi = data.filter(p => !p.data?.type || p.data.type !== 'pv');
     let projFv = data.filter(p => p.data?.type === 'pv');
 
@@ -1668,10 +1775,11 @@ function restoreProject(id) {
 
 function deleteProj(id) {
     if (!confirm("Cancellare il progetto?")) return;
-    let p = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+    let p = getArchive();
     p = p.filter(x => x.id !== Number(id));
     localStorage.setItem('archivio_elettrosuite', JSON.stringify(p));
     loadArchive();
+    if (typeof triggerAutoSave === 'function') triggerAutoSave();
 }
 
 // Global scope window wrappers for HTML inline onclick within Preset Archive lists
@@ -1712,12 +1820,13 @@ function clearArchiveByType(type) {
         initPresets();
     } else {
         if (!confirm(`Vuoi svuotare i progetti ${type === 'cavi' ? 'Linee' : 'Fotovoltaico'}?`)) return;
-        let data = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+        let data = getArchive();
         if (type === 'cavi') data = data.filter(p => p.data?.type === 'pv');
         else if (type === 'fv') data = data.filter(p => !p.data?.type || p.data.type !== 'pv');
         localStorage.setItem('archivio_elettrosuite', JSON.stringify(data));
     }
     loadArchive();
+    if (typeof triggerAutoSave === 'function') triggerAutoSave();
 }
 
 function clearArchive() {
@@ -1737,7 +1846,7 @@ function exportArchivioJSON(type) {
             alert("Nessun preset da esportare."); return;
         }
     } else {
-        let allProjs = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+        let allProjs = getArchive();
         if (type === 'cavi') exportData = allProjs.filter(p => !p.data?.type || p.data.type !== 'pv');
         else if (type === 'fv') exportData = allProjs.filter(p => p.data?.type === 'pv');
 
@@ -1778,12 +1887,13 @@ function importArchivioJSON(type, inputElement) {
                 initPresets();
             } else {
                 if (!Array.isArray(imported)) throw new Error("Formato progetto JSON invalido");
-                let oldProjs = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+                let oldProjs = getArchive();
                 // Create new unified array using spread
                 localStorage.setItem('archivio_elettrosuite', JSON.stringify([...oldProjs, ...imported]));
             }
             showToast("Importazione completata con successo!");
             loadArchive(); // Refresh currently viewed archive
+            if (typeof triggerAutoSave === 'function') triggerAutoSave();
         } catch (err) {
             alert("Errore nell'importazione: il file JSON potrebbe essere corrotto o incompatibile.\n" + err);
         }
@@ -2729,3 +2839,71 @@ function loadExternalScripts() {
 if (window.lucide) {
     window.lucide.createIcons();
 }
+
+/**
+ * Global function called by drive.js to apply cloud saved state.
+ */
+window.applyCloudState = function(ui) {
+    if(!ui) return;
+    
+    // 1. Resolve which section (priority to PV inputs)
+    const isPv = ui['in-pv-ntot'] !== undefined || ui['in-pv-vmaxdc'] !== undefined;
+    const targetSection = isPv ? 'sec-fotovoltaico' : 'sec-calc';
+    
+    // Switch to target tab
+    document.querySelectorAll('.view-section').forEach(sec => sec.classList.add('hidden'));
+    const secEl = document.getElementById(targetSection);
+    if (secEl) {
+        secEl.classList.remove('hidden');
+        history.pushState({ section: targetSection }, '', '#' + targetSection);
+    }
+
+    // 2. Set Pills (Only for Cable Calc)
+    if (!isPv) {
+        ['pill-sys', 'pill-input-type', 'pill-tens', 'pill-mat', 'pill-prot'].forEach(pillId => {
+            if (ui[pillId]) {
+                const group = document.getElementById(pillId);
+                if (group) {
+                    group.querySelectorAll('.pill').forEach(btn => btn.classList.remove('active'));
+                    const targetBtn = group.querySelector(`[data-val="${ui[pillId]}"]`);
+                    if (targetBtn) targetBtn.classList.add('active');
+                }
+            }
+        });
+
+        const selIso = document.getElementById('sel-iso');
+        if (selIso && ui['sel-iso']) selIso.value = ui['sel-iso'];
+        const selUnit = document.getElementById('sel-unit-potenza');
+        if (selUnit && ui['sel-unit-potenza']) selUnit.value = ui['sel-unit-potenza'];
+
+        updateLists();
+    }
+
+    // 3. Set all saved inputs and selects, then fire change events
+    Object.keys(ui).forEach(key => {
+        const el = document.getElementById(key);
+        if (el && el.tagName === 'INPUT' && el.type !== 'checkbox') {
+            el.value = ui[key];
+            if (isPv) el.dispatchEvent(new Event('input', { bubbles: true })); 
+        } else if (el && el.tagName === 'SELECT') {
+            el.value = ui[key];
+            if (el.classList.contains('upgraded')) syncCustomSelects(key);
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            if (isPv) el.dispatchEvent(new Event('input', { bubbles: true }));
+        } else if (key === 'ch-auto-parallel') {
+            const check = document.getElementById('ch-auto-parallel');
+            if (check) { 
+                check.checked = ui[key]; 
+                check.dispatchEvent(new Event('change', { bubbles: true })); 
+            }
+        }
+    });
+
+    // 4. Validate and recalculate
+    if (isPv) {
+        if (typeof calculatePV === 'function') calculatePV();
+    } else {
+        if (typeof validateForm === 'function') validateForm('sec-calc');
+        if (typeof performCalculation === 'function') performCalculation();
+    }
+};

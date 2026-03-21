@@ -13,6 +13,9 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="drive.js" defer></script>
+    <script src="tabelle_ui.js"></script>
 </head>
 
 <body>
@@ -25,6 +28,18 @@
                     <h1>ElectroSuite</h1>
                     <div class="badge">v4.0</div>
                 </div>
+                
+                <div id="cloud-control" style="display:flex; align-items:center; gap:10px; margin-left: auto; margin-right: 8px;">
+                    <span id="cloud-status" style="display:none; font-size: 0.85rem; color: var(--on-surface-variant); font-weight: 500; transition: all 0.3s ease;">☁️ Sincronizzato</span>
+                    <button class="btn-google" id="btn-drive-login" title="Accedi con Google Drive">
+                        <i data-lucide="log-in" style="width:16px;height:16px;"></i>
+                        <span>Accedi</span>
+                    </button>
+                    <button class="icon-btn" id="btn-drive-logout" title="Esci dal Cloud" style="display:none; color: var(--error);">
+                        <i data-lucide="log-out"></i>
+                    </button>
+                </div>
+
                 <button class="icon-btn" id="btn-theme-toggle" title="Cambia Tema">
                     <i data-lucide="moon"></i>
                 </button>
@@ -93,6 +108,17 @@
                         </div>
                         <div class="dash-card-footer">
                             <span>Consulta</span> <i data-lucide="archive"></i>
+                        </div>
+                    </div>
+                    <!-- Card 5: Tabelle Normative -->
+                    <div class="dash-card tabelle" data-target="sec-tabelle">
+                        <div class="dash-icon"><i data-lucide="book-open"></i></div>
+                        <div class="dash-card-body">
+                            <h3>Tabelle Normative</h3>
+                            <p>Riferimenti CEI-UNEL per parametri K.</p>
+                        </div>
+                        <div class="dash-card-footer">
+                            <span>Consulta</span> <i data-lucide="chevron-right"></i>
                         </div>
                     </div>
                 </div>
@@ -367,9 +393,20 @@
                                     <label id="lbl-temp"><span class="lbl-icon">🌡️</span> Temperatura (°C) [K1]</label>
                                     <select id="sel-temp" class="m3-select"></select>
                                 </div>
+                            </div>
+                            <div class="input-row">
                                 <div class="input-field">
                                     <label><span class="lbl-icon">🗂️</span> Raggruppamento [K2]</label>
                                     <select id="sel-group" class="m3-select"></select>
+                                </div>
+                                <div class="input-field" id="wrap-distanza" style="display:none;">
+                                    <label><span class="lbl-icon">↔️</span> Distanza di posa [K2]</label>
+                                    <select id="sel-distanza" class="m3-select">
+                                        <option value="a_contatto" selected>A contatto</option>
+                                        <option value="0.25">Distanziati 0,25 m</option>
+                                        <option value="0.5">Distanziati 0,50 m</option>
+                                        <option value="1.0">Distanziati 1,00 m</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="input-row" id="wrap-terra" style="display:none; margin-top:1rem;">
@@ -479,6 +516,21 @@
                             Calcola ΔV
                         </button>
                     </div>
+                </div>
+            </section>
+
+            <!-- ══ SECTION: TABELLE NORMATIVE ══ -->
+            <section id="sec-tabelle" class="view-section hidden">
+                <div class="top-app-bar top-tabelle">
+                    <button class="icon-btn-text btn-home" data-target="sec-home">
+                        <i data-lucide="arrow-left"></i> Home
+                    </button>
+                    <h2>Tabelle Normative (CEI-UNEL)</h2>
+                    <div style="width: 80px;"></div>
+                </div>
+
+                <div class="module-container" id="tabelle-container" style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem;">
+                    <!-- Tabelle generate dinamicamente da app.js -->
                 </div>
             </section>
 

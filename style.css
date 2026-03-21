@@ -201,6 +201,53 @@ body {
     transition: all 0.3s ease;
 }
 
+/* ── Google Drive & Cloud UI ───────────────── */
+.btn-google {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-1);
+    border: 1px solid var(--outline);
+    color: var(--on-surface);
+    padding: 6px 14px;
+    border-radius: var(--r-pill);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-xs);
+}
+
+.btn-google:hover {
+    background: var(--surface-2);
+    border-color: var(--outline-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-google:active {
+    transform: translateY(0);
+}
+
+#cloud-status {
+    animation: fadeInStatus 0.5s ease-out;
+}
+
+#btn-drive-logout:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626 !important;
+}
+
+@keyframes fadeInStatus {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+body.dark-mode .btn-google {
+    background: var(--surface-2);
+    border-color: var(--outline);
+}
+
 .top-bar h1 {
     font-size: 1.35rem;
     font-weight: 800;
@@ -2885,3 +2932,77 @@ body.dark-mode .pv-compat-error {
     }
 }
 
+/* -- Tabelle Normative -------------------------- */
+.table-card {
+    padding: 1.5rem;
+}
+
+.table-card h3 {
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+}
+
+.table-desc {
+    font-size: 0.85rem;
+    color: var(--on-surface-variant);
+    margin-bottom: 1.25rem;
+    font-style: italic;
+}
+
+.table-responsive {
+    overflow-x: auto;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--outline);
+    background: var(--surface-1);
+    box-shadow: var(--shadow-xs);
+}
+
+.normative-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    text-align: left;
+}
+
+.normative-table th {
+    background: var(--surface-2);
+    color: var(--on-surface);
+    font-weight: 700;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--outline);
+    white-space: nowrap;
+}
+
+.normative-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--outline);
+    color: var(--on-surface);
+    vertical-align: middle;
+}
+
+.normative-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.normative-table tbody tr:nth-child(even) {
+    background: var(--surface-3); /* Usiamo un leggero stacco per facilitare la lettura */
+}
+
+.normative-table tbody tr:hover {
+    background: var(--surface-2);
+}
+
+.numeric-cell {
+    font-family: 'Inter', monospace; /* Per allineare meglio i numeri */
+    font-weight: 500;
+}
+
+body.dark-mode .normative-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+}
+body.dark-mode .normative-table th {
+    background: rgba(255, 255, 255, 0.04);
+}
