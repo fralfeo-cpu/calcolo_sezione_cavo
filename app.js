@@ -1,13 +1,16 @@
 const DB = DB_DATA.database_cavi_master;
 let currentResult = null;
 let idProgettoAttivo = null; // null = nuovo progetto, altrimenti id da aggiornare
+let navigateTo; // Riferimento globale a navigateTo, assegnato dentro initUI()
 
 const POSA_LABELS = {
     "aria_tubo_muro_A1": "Metodo A1 (In tubo entro parete isolante)",
+    "aria_tubo_muro_A2": "Metodo A2 (Cavi multipolari entro tubo entro parete isolante)",
     "aria_tubo_B1": "Metodo B1 (Cavi unipolari entro tubo su parete o incassati)",
     "aria_tubo_B2": "Metodo B2 (Cavi multipolari entro tubo su parete o incassati)",
     "aria_muro_C": "Metodo C (Cavi fissati direttamente a parete o su passerella non perforata)",
-    "interrato_tubo_D1": "Metodo D1 (In tubo protettivo interrato)",
+    "interrato_tubo_D1_multi": "Metodo D1 multi (Cavi multipolari in tubo protettivo interrato)",
+    "interrato_tubo_D1_uni": "Metodo D1 uni (Cavi unipolari in tubo protettivo interrato)",
     "interrato_diretto_D2": "Metodo D2 (Cavi posti direttamente nel terreno)",
     "aria_passerella_E": "Metodo E (Cavi multipolari su passerella perforata)",
     "aria_passerella_F": "Metodo F (Cavi unipolari a contatto tra loro su passerella perforata)",
@@ -32,7 +35,7 @@ function withLoading(btn, fn) {
     btn.disabled = true;
     // Use a short delay so the spinner actually renders before the sync calc runs
     setTimeout(() => {
-        try { fn(); } catch (e) { console.error(e); }
+        try { fn(); } catch (e) { console.error('Errore nel calcolo:', e); if (typeof setUIError === 'function') setUIError(); }
         btn.innerHTML = originalHTML;
         // Re-enable happens via validateForm, but ensure it removes disabled visually
         btn.disabled = false;
@@ -64,8 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof updateParallelSpacingVisibility === 'function') updateParallelSpacingVisibility();
     initPresets();
     updateLists();
-    performCalculation();
-    loadExternalScripts();
+    if (typeof loadExternalScripts === 'function') loadExternalScripts();
 });
 
 function initUI() {
@@ -78,18 +80,27 @@ function initUI() {
         new ResizeObserver(syncSpacer).observe(topBar);
     }
 
-    // Theme toggle
+    // Theme toggle — dark is the DEFAULT (no class).
+    // Adding 'light-mode' class activates the light palette.
     const savedTheme = localStorage.getItem('cs_theme');
-    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.body.classList.add('dark-mode');
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-mode');
+        const themeIcon = document.querySelector('#btn-theme-toggle i');
+        if (themeIcon) { themeIcon.setAttribute('data-lucide', 'moon'); lucide.createIcons(); }
     }
-
+    // If no saved theme → stay dark (default)
 
     const themeBtn = document.getElementById('btn-theme-toggle');
     if (themeBtn) {
         themeBtn.addEventListener('click', () => {
-            const isDark = document.body.classList.toggle('dark-mode');
-            localStorage.setItem('cs_theme', isDark ? 'dark' : 'light');
+            const isLight = document.body.classList.toggle('light-mode');
+            localStorage.setItem('cs_theme', isLight ? 'light' : 'dark');
+            // Update icon
+            const ico = themeBtn.querySelector('i');
+            if (ico) {
+                ico.setAttribute('data-lucide', isLight ? 'moon' : 'sun');
+                lucide.createIcons();
+            }
         });
     }
 
@@ -97,10 +108,33 @@ function initUI() {
     // Push a state whenever we navigate, so Android/iOS back button
     // returns to the previous section instead of closing the app.
 
-    function navigateTo(targetId, addToHistory = true) {
+    navigateTo = function(targetId, addToHistory = true) {
         document.querySelectorAll('.view-section').forEach(sec => sec.classList.add('hidden'));
         const section = document.getElementById(targetId);
         if (section) section.classList.remove('hidden');
+
+        // Sync desktop navigation active state
+        document.querySelectorAll('.desktop-nav-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-target') === targetId);
+        });
+
+        // Update global top-bar: title + back button + accent color
+        const topBar = document.getElementById('global-top-bar');
+        const topBarTitle = document.getElementById('top-bar-title');
+        const backBtn = document.getElementById('btn-top-bar-back');
+        const sectionMeta = {
+            'sec-home':        { title: 'ElectroSuite', cls: '' },
+            'sec-calc':        { title: 'Dimensionamento Cavi', cls: 'sec-cable' },
+            'sec-fotovoltaico':{ title: 'Progettazione FV', cls: 'sec-fv' },
+            'sec-dv':          { title: 'Verifica ΔV', cls: 'sec-dv' },
+            'sec-archive':     { title: 'Archivio', cls: 'sec-archive' },
+        };
+        const meta = sectionMeta[targetId] || { title: 'ElectroSuite', cls: '' };
+        if (topBarTitle) topBarTitle.textContent = meta.title;
+        if (topBar) {
+            topBar.className = 'top-bar' + (meta.cls ? ' ' + meta.cls : '');
+        }
+        if (backBtn) backBtn.classList.toggle('hidden', targetId === 'sec-home');
 
         // Always scroll to top when changing section
         window.scrollTo({ top: 0, behavior: 'instant' });
@@ -122,18 +156,37 @@ function initUI() {
     // Set initial history entry so first back-press goes to home, not exits
     history.replaceState({ section: 'sec-home' }, '', '#sec-home');
 
-    // Dashboard card clicks ────────────────────────────────────────
+    // Dashboard card clicks
     document.querySelectorAll('.dash-card').forEach(card => {
         card.addEventListener('click', () => {
             navigateTo(card.getAttribute('data-target'));
         });
     });
 
-    // "← Home" back buttons ────────────────────────────────────────
+    // Bottom navigation bar clicks
+    document.querySelectorAll('.bnav-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            navigateTo(btn.getAttribute('data-target'));
+        });
+    });
+
+    // "← Home" back buttons (sezioni) ────────────────────────────
     document.querySelectorAll('.btn-home').forEach(btn => {
         btn.addEventListener('click', () => {
-            // Use native history.back() so the pushState stack unwinds cleanly
             history.back();
+        });
+    });
+
+    // Back button nella global top-bar ────────────────────────────
+    const _topBarBackBtn = document.getElementById('btn-top-bar-back');
+    if (_topBarBackBtn) {
+        _topBarBackBtn.addEventListener('click', () => { history.back(); });
+    }
+
+    // Desktop navigation bar buttons ────────────────────────────────
+    document.querySelectorAll('.desktop-nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            navigateTo(btn.getAttribute('data-target'));
         });
     });
 
@@ -156,7 +209,8 @@ function initUI() {
                     if (selUnit) selUnit.style.display = isP ? '' : 'none';
                     // Show cos phi only when input type is Potenza AND unit is kW
                     const unitIsKva = selUnit && selUnit.value === 'kva';
-                    document.getElementById('wrap-cosphi').style.display = (isP && !unitIsKva) ? 'block' : 'none';
+                    const wrapCosphiEl = document.getElementById('wrap-cosphi');
+                    if (wrapCosphiEl) wrapCosphiEl.style.display = (isP && !unitIsKva) ? 'block' : 'none';
                 }
 
                 if (group.id === 'pill-tens') {
@@ -253,29 +307,12 @@ function initUI() {
         });
     }
 
-    function updateParallelSpacingVisibility() {
-        const nCavi = parseInt(document.getElementById('sel-n-cavi')?.value) || 1;
-        const isAuto = document.getElementById('ch-auto-parallel')?.checked || false;
-        const wrap = document.getElementById('wrap-parallel-spacing');
-        if (wrap) {
-            if (nCavi > 1 || isAuto) {
-                wrap.classList.remove('hidden-anim');
-                wrap.style.display = 'block';
-                // Trigger reflow for animation
-                void wrap.offsetWidth;
-                wrap.classList.add('visible-anim');
-            } else {
-                wrap.classList.remove('visible-anim');
-                wrap.classList.add('hidden-anim');
-                // Wait for animation to finish before hiding display
-                setTimeout(() => {
-                    if (wrap.classList.contains('hidden-anim')) {
-                        wrap.style.display = 'none';
-                    }
-                }, 300);
-            }
-        }
-    }
+    // Input listeners per modulo Quick-Check ΔV (necessari per abilitare btn-calc-dv)
+    const dvInputIds = ['q-v', 'q-ib', 'q-l', 'q-cat', 'q-mat', 'q-sec', 'q-sys', 'q-cosphi'];
+    dvInputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', () => validateForm('sec-dv'));
+    });
 
     // Re-initialize Lucide icons to render both static and dynamic icons
     if (window.lucide) {
@@ -290,7 +327,8 @@ function initUI() {
             const isKva = selUnitPotenza.value === 'kva';
             // cos phi not needed for apparent power (kVA already includes it)
             if (inputType === 'p') {
-                document.getElementById('wrap-cosphi').style.display = isKva ? 'none' : 'block';
+                const wrapCosphiUnit = document.getElementById('wrap-cosphi');
+                if (wrapCosphiUnit) wrapCosphiUnit.style.display = isKva ? 'none' : 'block';
             }
             validateForm('sec-calc');
         });
@@ -372,6 +410,28 @@ function initUI() {
     document.querySelectorAll('.input-import-json').forEach(input => {
         input.addEventListener('change', (e) => importArchivioJSON(e.target.dataset.type, e.target));
     });
+}
+
+function updateParallelSpacingVisibility() {
+    const nCavi = parseInt(document.getElementById('sel-n-cavi')?.value) || 1;
+    const isAuto = document.getElementById('ch-auto-parallel')?.checked || false;
+    const wrap = document.getElementById('wrap-parallel-spacing');
+    if (wrap) {
+        if (nCavi > 1 || isAuto) {
+            wrap.classList.remove('hidden-anim');
+            wrap.style.display = 'block';
+            void wrap.offsetWidth;
+            wrap.classList.add('visible-anim');
+        } else {
+            wrap.classList.remove('visible-anim');
+            wrap.classList.add('hidden-anim');
+            setTimeout(() => {
+                if (wrap.classList.contains('hidden-anim')) {
+                    wrap.style.display = 'none';
+                }
+            }, 300);
+        }
+    }
 }
 
 function resetModule(targetId) {
@@ -491,7 +551,7 @@ function validateForm(targetId) {
         if (btnCalc) btnCalc.disabled = !isValid;
 
     } else if (targetId === 'sec-dv') {
-        const reqIds = ['q-v', 'q-ib', 'q-l', 'q-cat', 'q-mat', 'q-sec'];
+        const reqIds = ['q-v', 'q-ib', 'q-l', 'q-cat', 'q-mat', 'q-sec', 'q-cosphi'];
         reqIds.forEach(id => {
             const el = document.getElementById(id);
             if (!el || el.value === "" || el.value === null || el.value === "Seleziona...") isValid = false;
@@ -500,8 +560,8 @@ function validateForm(targetId) {
         const btnCalcDv = document.getElementById('btn-calc-dv');
         if (btnCalcDv) btnCalcDv.disabled = !isValid;
     } else if (targetId === 'sec-fotovoltaico') {
-        // gamma (in-pv-gamma) is optional, not in required list
-        const pvRequired = ['in-pv-vmaxdc', 'in-pv-nmppt', 'in-pv-imax', 'in-pv-mpptmin', 'in-pv-mpptmax', 'in-pv-pmaxcc', 'in-pv-wp', 'in-pv-beta', 'in-pv-voc', 'in-pv-isc', 'in-pv-vmp', 'in-pv-ntot', 'in-pv-lcavo', 'in-pv-tmin', 'in-pv-tmax'];
+        // gamma (in-pv-gamma) is optional and hidden; pac and nStringhe are required by engine
+        const pvRequired = ['in-pv-vmaxdc', 'in-pv-nmppt', 'in-pv-imax', 'in-pv-mpptmin', 'in-pv-mpptmax', 'in-pv-pmaxcc', 'in-pv-pac', 'fv-nstringhe', 'in-pv-wp', 'in-pv-beta', 'in-pv-voc', 'in-pv-isc', 'in-pv-vmp', 'in-pv-ntot', 'in-pv-lcavo', 'in-pv-tmin', 'in-pv-tmax'];
         pvRequired.forEach(id => {
             const el = document.getElementById(id);
             if (!el || el.value === "" || el.value === null) isValid = false;
@@ -538,7 +598,7 @@ function updateLists() {
     const posa = posaSelect.value || '';
     const env = posa.includes('interrato') ? 'terreno' : 'aria';
 
-    document.getElementById('lbl-temp').textContent = env === 'terreno' ? 'Temperatura Terreno (°C) [K1]' : 'Temperatura Aria (°C) [K1]';
+    document.getElementById('lbl-temp').textContent = env === 'terreno' ? 'Temperatura terreno (°C) – K1' : 'Temperatura aria (°C) – K1';
     document.getElementById('wrap-terra').style.display = env === 'terreno' ? 'flex' : 'none';
 
     // Update factor lists
@@ -558,8 +618,7 @@ function updateLists() {
     // K2 Group
     const groupSelect = document.getElementById('sel-group');
     const currentGroup = groupSelect.value;
-    const groupKey = env === 'terreno' ? 'k2_raggruppamento_interrato' : 'k2_raggruppamento_aria';
-    const groups = Object.keys(kData[groupKey] || {});
+    const groups = Object.keys(kData.k2_raggruppamento?.['in_tubo_canale_o_fascio'] || {});
     groupSelect.innerHTML = groups.map(g => {
         const isSelected = currentGroup ? (g === currentGroup) : false;
         return `<option value="${g}" ${isSelected ? 'selected' : ''}>${g}</option>`;
@@ -576,7 +635,7 @@ function updateLists() {
 
     const resSelect = document.getElementById('sel-res');
     const currentRes = resSelect.value;
-    const res = Object.keys(kData.k4_resistivita_terreno || {});
+    const res = Object.keys(kData.k4_resistivita_terreno?.multipolari || {});
     resSelect.innerHTML = res.map(r => {
         const isSelected = currentRes ? (r === currentRes) : false;
         return `<option value="${r}" ${isSelected ? 'selected' : ''}>${r}</option>`;
@@ -607,6 +666,7 @@ function upgradeSelects() {
         const wrapper = document.createElement('div');
         wrapper.className = 'custom-select-wrapper';
         if (select.style.flex) wrapper.style.flex = select.style.flex;
+        if (select.closest('.preset-toolbar')) wrapper.style.width = 'auto';
 
         const trigger = document.createElement('div');
         trigger.className = 'custom-select-trigger';
@@ -698,6 +758,8 @@ function syncCustomSelects(selectId) {
         baseN: parseInt(document.getElementById('sel-n-cavi')?.value) || 1,
         isAutoParallel: document.getElementById('ch-auto-parallel')?.checked || false,
         spacing: document.getElementById('sel-parallel-spacing')?.value || 'touching',
+        // Mappa la spaziatura UI alle chiavi DB per k2 interrato ('a_contatto' | '0.25' | '0.5' | '1.0')
+        distanza: (document.getElementById('sel-parallel-spacing')?.value === 'spaced') ? '0.25' : 'a_contatto',
         protType: document.querySelector('#pill-prot .active').getAttribute('data-val'),
         temp: document.getElementById('sel-temp').value,
         group: document.getElementById('sel-group').value,
@@ -705,7 +767,8 @@ function syncCustomSelects(selectId) {
         res: document.getElementById('sel-res')?.value || '1.0'
     };
 
-    currentResult = ElectroEngine.calculateCable(DB, inputs);
+    if (typeof EngineCavi === 'undefined') { console.error('EngineCavi non inizializzato'); return; }
+    currentResult = EngineCavi.calculateCable(DB, inputs);
     
     if (currentResult.status === 'OK') setUISuccess(currentResult);
     else {
@@ -726,7 +789,7 @@ function setUISuccess(r) {
     if (warningEl) {
         if (r.n > 10) {
             warningEl.className = 'res-warning-banner';
-            warningEl.innerHTML = `<i data-lucide="alert-circle" style="width:18px;height:18px;"></i> Attenzione: La potenza richiede un elevato numero di cavi in parallelo (${r.n}). Valutare l'aumento della Tensione o l'uso di condotti a sbarre.`;
+            warningEl.innerHTML = `<i data-lucide="alert-circle" style="width:18px;height:18px;"></i> ${r.n} cavi in parallelo richiesti. Valutare aumento di tensione o condotti a sbarre.`;
             warningEl.classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
         } else {
@@ -738,12 +801,13 @@ function setUISuccess(r) {
     const displaySec = (r.n > 1)
         ? (r.inputs.isTri ? `${r.n}x(${multiplier}${r.section})` : `${r.n}x${r.section}`)
         : `${multiplier}${r.section}`;
-    document.getElementById('res-sec').textContent = `${displaySec} mm²`;
+    const resSecEl = document.getElementById('res-sec');
+    if (resSecEl) resSecEl.textContent = `${displaySec} mm²`;
 
     // Protezione
     const protLbl = document.getElementById('res-prot-lbl');
     if (protLbl) {
-        protLbl.textContent = r.protType === 'mcb' ? 'Taglia MCB' : 'Taglia Fusibile';
+        protLbl.textContent = r.protType === 'mcb' ? 'Protezione MCB' : 'Protezione fusibile';
     }
     const resIn = document.getElementById('res-in');
     if (resIn) {
@@ -755,7 +819,7 @@ function setUISuccess(r) {
     const warnInc = document.getElementById('res-warn-increase');
     if (warnInc) {
         if (r.hasAutoIncreased) {
-            document.getElementById('res-warn-increase-text').textContent = `Sezione aumentata a ${r.section} mm² per garantire il coordinamento con la protezione commerciale.`;
+            document.getElementById('res-warn-increase-text').textContent = `Sezione aumentata a ${r.section} mm² per coordinamento con la protezione commerciale.`;
             warnInc.classList.remove('hidden');
         } else {
             warnInc.classList.add('hidden');
@@ -811,11 +875,11 @@ function setUISuccess(r) {
         if (isCoordOk) {
             statusMsg.className = 'formula-status success';
             statusIcon.setAttribute('data-lucide', 'check-circle-2');
-            statusText.textContent = "Condizione normativa rispettata con successo.";
+            statusText.textContent = "Coordinamento Ib ≤ In ≤ Iz verificato.";
         } else {
             statusMsg.className = 'formula-status error';
             statusIcon.setAttribute('data-lucide', 'x-circle');
-            statusText.textContent = "Errore di coordinamento. Modificare la sezione o la protezione.";
+            statusText.textContent = "Coordinamento non rispettato. Modificare sezione o protezione.";
         }
     }
 
@@ -830,8 +894,10 @@ function setUISuccess(r) {
     if (valDv) valDv.textContent = r.dv.toFixed(2) + ' %';
 
     const st = document.getElementById('res-status');
-    st.textContent = "VERIFICATO";
-    st.style.color = "var(--success)";
+    if (st) {
+        st.textContent = "VERIFICATO";
+        st.style.color = "var(--success)";
+    }
 
     // Visualizzazione Fattori K
     const kContainer = document.getElementById('res-k-factors');
@@ -866,21 +932,22 @@ function setUIFatalError() {
     if (warningEl) {
         if (currentResult.status === 'OUT_OF_SCALE') {
             warningEl.className = 'res-error-banner';
-            warningEl.innerHTML = `<i data-lucide="alert-triangle" style="width:18px;height:18px;"></i> Limite massimo consentito (Cavi in parallelo > Max) superato.`;
+            warningEl.innerHTML = `<i data-lucide="alert-triangle" style="width:18px;height:18px;"></i> Numero massimo di cavi in parallelo superato. Ridurre il carico o aumentare la tensione.`;
             warningEl.classList.remove('hidden');
         } else if (currentResult.status === 'SECTION_INSUFFICIENT') {
             warningEl.className = 'res-error-banner';
-            warningEl.innerHTML = `<i data-lucide="alert-triangle" style="width:18px;height:18px;"></i> Sezione massima insufficiente. Attivare Auto-Parallelo o aumentare il numero di cavi.`;
+            warningEl.innerHTML = `<i data-lucide="alert-triangle" style="width:18px;height:18px;"></i> Nessuna sezione idonea trovata. Attivare Auto-Parallelo o verificare i parametri.`;
             warningEl.classList.remove('hidden');
         } else {
             warningEl.className = 'res-error-banner';
-            warningEl.innerHTML = `<i data-lucide="alert-triangle" style="width:18px;height:18px;"></i> Nessuna sezione commerciale idonea trovata per questi parametri.`;
+            warningEl.innerHTML = `<i data-lucide="alert-triangle" style="width:18px;height:18px;"></i> Nessuna sezione commerciale compatibile con i parametri inseriti.`;
             warningEl.classList.remove('hidden');
         }
         if (window.lucide) lucide.createIcons();
     }
 
-    document.getElementById('res-sec').textContent =
+    const resSecErr = document.getElementById('res-sec');
+    if (resSecErr) resSecErr.textContent =
         currentResult.status === 'OUT_OF_SCALE' ? "Fuori Scala" :
             currentResult.status === 'SECTION_INSUFFICIENT' ? "Sezione Insuff." : "Non Trovato";
     const valIb = document.getElementById('res-ib');
@@ -1022,10 +1089,18 @@ function generatePVResultHTML(result) {
     if (vocTminEl) vocTminEl.textContent = minM === maxM ? `${voc_tmin_min.toFixed(0)} V` : `${voc_tmin_min.toFixed(0)}-${voc_tmin_max.toFixed(0)} V`;
     if (vmpTmaxEl) vmpTmaxEl.textContent = minM === maxM ? `${vmp_tmax_min.toFixed(0)} V` : `${vmp_tmax_min.toFixed(0)}-${vmp_tmax_max.toFixed(0)} V`;
 
-    // Quadro CC
-    document.getElementById('pv-res-cavo').textContent = `${result.cableSec} mm² | Iz (70°C): ${result.izEff.toFixed(1)} A | Caduta: ${result.dvReal.toFixed(2)}%`;
-    document.getElementById('pv-res-fuse').textContent = `${result.fuse}A gPV`;
-    document.getElementById('pv-res-sez').textContent = '> ' + (maxM * inputs.voc * (1 + (inputs.beta / 100) * (inputs.tmin - 25))).toFixed(0) + ' V';
+    // Quadro CC – con verifiche esplicite (IB, Iz@80°C, fusibile range, SPD Uc×1.2)
+    const _worstCavoOk = result.mpptConfig.every(c => c.cavoCheck?.ok !== false);
+    const _worstFuseOk = result.mpptConfig.every(c => c.fuseCheck?.ok !== false);
+    const _worstIz80   = result.mpptConfig.length > 0 ? Math.min(...result.mpptConfig.map(c => c.iz80 || 0)) : 0;
+    const _refCfg      = result.mpptConfig[0] || {};
+    const _spdUcReq    = result.mpptConfig.length > 0 ? Math.max(...result.mpptConfig.map(c => c.spdCheck?.ucReq || 0)) : 0;
+    const _cavoEl = document.getElementById('pv-res-cavo');
+    if (_cavoEl) _cavoEl.innerHTML = `${result.cableSec} mm² | I<sub>B</sub>=${(_refCfg.cavoCheck?.ib||0).toFixed(1)} A | I<sub>z</sub>(80°C)=${_worstIz80.toFixed(1)} A <span style="color:${_worstCavoOk?'var(--success)':'var(--error)'}">${_worstCavoOk?'✓':'⚠'}</span> | ΔV: ${result.dvReal.toFixed(2)}%`;
+    const _fuseEl = document.getElementById('pv-res-fuse');
+    if (_fuseEl) _fuseEl.innerHTML = `${result.fuse} A gPV <span style="color:${_worstFuseOk?'var(--success)':'var(--error)'}">${_worstFuseOk?'✓':'⚠'}</span> | ${(_refCfg.fuseCheck?.min||0).toFixed(1)} ≤ I<sub>n</sub> ≤ ${(_refCfg.fuseCheck?.max||0).toFixed(1)} A`;
+    const _sezEl = document.getElementById('pv-res-sez');
+    if (_sezEl) _sezEl.textContent = '≥ ' + _spdUcReq.toFixed(0) + ' V  (1,2·Uoc)';
     document.getElementById('pv-res-isc-str').textContent = result.isc.toFixed(2) + ' A';
     
     const vstrEl = document.getElementById('pv-res-vstr');
@@ -1060,18 +1135,40 @@ function generatePVResultHTML(result) {
                             <i data-lucide="shield" style="width:11px;height:11px;display:inline-block;vertical-align:middle;"></i> 
                             Protezione: <strong>${fuse_disp}A gPV</strong> | Sezione Cavo: <strong>${cable_disp} mm²</strong>
                         </div>
+                        <div class="mppt-aux-line" style="font-size: 0.72rem; margin-top:3px; display:flex; gap:10px; flex-wrap:wrap;">
+                            <span style="color:${cfg.cavoCheck?.ok!==false?'var(--success)':'var(--error)'}">${cfg.cavoCheck?.ok!==false?'✓':'⚠'} Cavo: I<sub>B</sub>=${((cfg.cavoCheck?.ib)||0).toFixed(1)} A → I<sub>z</sub>(80°C)=${((cfg.iz80)||0).toFixed(1)} A</span>
+                            <span style="color:${cfg.fuseCheck?.ok!==false?'var(--success)':'var(--error)'}">${cfg.fuseCheck?.ok!==false?'✓':'⚠'} Fuse: ${((cfg.fuseCheck?.min)||0).toFixed(1)}≤${fuse_disp}≤${((cfg.fuseCheck?.max)||0).toFixed(1)} A</span>
+                            <span style="color:#555;">SPD: U<sub>c</sub> ≥ ${((cfg.spdCheck?.ucReq)||0).toFixed(0)} V</span>
+                        </div>
                     </div>
                 </div>
             `;
             if (!isAsymmetric) return; 
         });
         if (!isAsymmetric && result.mpptConfig.length > 1) {
-            dynContainer.innerHTML += `<div class="mppt-warning" style="color:var(--success);border-color:var(--success);"><i data-lucide="check-circle-2" style="width:13px;height:13px;"></i> Tutte le ${result.nmppt} stringhe identiche</div>`;
+            dynContainer.innerHTML += `<div class="mppt-warning" style="color:var(--success);border-color:var(--success);"><i data-lucide="check-circle-2" style="width:13px;height:13px;"></i> Tutti i ${result.nmppt} MPPT identici</div>`;
         }
         if (window.lucide) lucide.createIcons();
     }
 
-    if (warning) warning.classList.add('hidden');
+    // Rendering warnings condizioni 2 e 3
+    if (warning) {
+        const warns = result.warnings || [];
+        if (warns.length === 0) {
+            warning.classList.add('hidden');
+        } else {
+            warning.className = 'res-warning-banner';
+            warning.innerHTML = warns.map(w => {
+                if (w.cond === 2) {
+                    return `<div style="display:flex;align-items:center;gap:8px;"><i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0;"></i><span><strong>Condizione 2 – MPPT ${w.mppt}:</strong> U<sub>mpp,min</sub> = ${w.value} V &lt; U<sub>MPPT,min</sub> = ${w.limit} V. Tensione MPP minima sotto il range MPPT inverter.</span></div>`;
+                } else {
+                    return `<div style="display:flex;align-items:center;gap:8px;"><i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0;"></i><span><strong>Condizione 3 – MPPT ${w.mppt}:</strong> U<sub>mpp,max</sub> = ${w.value} V &gt; U<sub>MPPT,max</sub> = ${w.limit} V. Tensione MPP massima oltre il range MPPT inverter.</span></div>`;
+                }
+            }).join('');
+            warning.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+    }
 
     const btnSavePv = document.getElementById('btn-save-pv');
     if (btnSavePv) {
@@ -1098,7 +1195,8 @@ function calculatePV() {
         return; 
     }
 
-    currentResult = ElectroEngine.calculatePV(inputs);
+    if (typeof EngineFV === 'undefined') { console.error('EngineFV non inizializzato'); return; }
+    currentResult = EngineFV.calculatePV(inputs);
 
     if (currentResult.status === 'OK') {
         pvHideCompatError();
@@ -1196,7 +1294,7 @@ function salvaPresetInverter() {
     savePresets('inverter', presets);
     initPresets();
     document.getElementById('sel-preset-inverter').value = preset.id;
-    showToast("Preset Inverter salvato!");
+    showToast("Preset inverter salvato.");
 }
 
 function salvaPresetPannello() {
@@ -1221,7 +1319,7 @@ function salvaPresetPannello() {
     savePresets('pannello', presets);
     initPresets();
     document.getElementById('sel-preset-pannello').value = preset.id;
-    showToast("Preset Pannello salvato!");
+    showToast("Preset pannello salvato.");
 }
 
 function loadPreset(type, id) {
@@ -1260,7 +1358,7 @@ function deletePreset(type) {
     const select = document.getElementById(`sel-preset-${type}`);
     const id = select.value;
     if (!id) {
-        alert("Seleziona prima un preset da eliminare.");
+        alert("Seleziona un preset da eliminare.");
         return;
     }
     if (!confirm("Eliminare questo preset?")) return;
@@ -1269,7 +1367,7 @@ function deletePreset(type) {
     presets = presets.filter(p => p.id !== id);
     savePresets(type, presets);
     initPresets();
-    showToast("Preset eliminato!");
+    showToast("Preset eliminato.");
 }
 
 function calculateQuickDV() {
@@ -1282,6 +1380,7 @@ function calculateQuickDV() {
     const cat = document.getElementById('q-cat').value;
     const mat = document.getElementById('q-mat').value;
     const sec = document.getElementById('q-sec').value;
+    const cosphi = Math.min(1, Math.max(0.1, parseFloat(document.getElementById('q-cosphi')?.value) || 0.9));
 
     const resEl = document.getElementById('q-res');
     const card = resEl.closest('.result-card');
@@ -1307,7 +1406,6 @@ function calculateQuickDV() {
     const R = paramElettrici.R;
     const X = paramElettrici.X;
 
-    const cosphi = 0.9;
     const k = isTri ? Math.sqrt(3) : 2;
     const phi = Math.acos(cosphi);
     const sinphi = Math.sin(phi);
@@ -1403,7 +1501,7 @@ function buildSafeData(uiState) {
 function saveProject(isUpdate = false) {
     try {
         if (!currentResult || currentResult.status !== 'OK') {
-            alert("Assicurati che il calcolo sia valido prima di salvare.");
+            alert("Eseguire un calcolo valido prima di salvare.");
             return;
         }
 
@@ -1419,15 +1517,15 @@ function saveProject(isUpdate = false) {
                 p[idx].uiState = uiState;
                 p[idx].date = new Date().toLocaleDateString('it-IT') + ' ' + new Date().toLocaleTimeString('it-IT');
                 localStorage.setItem('archivio_elettrosuite', JSON.stringify(p));
-                showToast('Progetto aggiornato nell\u2019archivio');
+                showToast('Progetto aggiornato in archivio.');
             } else {
-                showToast('Progetto non trovato, crea un nuovo salvataggio.');
+                showToast('Progetto non trovato. Creare un nuovo salvataggio.');
             }
         } else {
             // ── INSERT MODE ────────────────────────────────────────────────
             const name = document.getElementById('in-proj-name').value.trim();
             if (!name) {
-                alert("Inserisci un nome per il progetto.");
+                alert("Inserire un nome per il progetto.");
                 return;
             }
             const newId = Date.now();
@@ -1450,14 +1548,14 @@ function saveProject(isUpdate = false) {
 
             document.getElementById('in-proj-name').value = '';
             document.getElementById('modal-save').classList.remove('open');
-            showToast('Progetto salvato nell\u2019archivio');
+            showToast('Progetto salvato in archivio.');
         }
 
         loadArchive();
     } catch (err) {
         console.error('Errore salvataggio:', err);
         document.getElementById('modal-save').classList.remove('open');
-        showToast('Errore durante il salvataggio: ' + err.message);
+        showToast('Errore nel salvataggio: ' + err.message);
     }
 }
 
@@ -1479,7 +1577,8 @@ function loadArchive() {
     listPreset.innerHTML = '';
 
     // -- Render Progetti (Cavi / FV) --
-    let data = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+    let data;
+    try { data = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]'); } catch (e) { data = []; }
     let projCavi = data.filter(p => !p.data?.type || p.data.type !== 'pv');
     let projFv = data.filter(p => p.data?.type === 'pv');
 
@@ -1488,7 +1587,7 @@ function loadArchive() {
     if (projCavi.length === 0) {
         listCavi.innerHTML = createEmpty('Nessun progetto Cavi registrato.');
     } else {
-        projCavi.reverse().forEach(p => {
+        [...projCavi].reverse().forEach(p => {
             const multiplier = (p.data.inputs && p.data.inputs.isTri) ? '3x' : '';
             const nCavi = p.data.n || 1;
             const displaySec = (nCavi > 1)
@@ -1501,16 +1600,17 @@ function loadArchive() {
                     <div class="archive-card-icon"><i data-lucide="cable"></i></div>
                     <div class="archive-card-info">
                         <div class="archive-info-title">${p.name || 'Senza Nome'}</div>
-                        <div class="archive-info-sub">
-                            <div><i data-lucide="calendar" style="width:12px;height:12px;display:inline;margin-right:4px;"></i>${p.date || ''}</div>
-                            <div style="margin-top:2px; color:var(--accent-cable); font-weight:700;">${detailStr}</div>
-                        </div>
+                        <div class="archive-info-date"><i data-lucide="calendar"></i>${p.date || ''}</div>
+                        <div class="archive-info-sub">${detailStr}</div>
                     </div>
                 </div>
-                <div class="archive-card-actions">
-                     <button class="icon-btn" style="color:var(--success)" onclick="restoreProject(${p.id})" title="Apri"><i data-lucide="external-link"></i></button>
-                     <button class="icon-btn" style="color:var(--primary)" onclick="exportPDF(${p.id})" title="PDF"><i data-lucide="file-text"></i></button>
-                     <button class="icon-btn text-error" onclick="deleteProj(${p.id})" title="Elimina"><i data-lucide="trash-2"></i></button>
+                <div class="archive-card-footer">
+                    <span class="archive-type-badge">Cavi BT/MT</span>
+                    <div class="archive-card-actions">
+                        <button class="icon-btn" onclick="restoreProject(${p.id})" title="Apri"><i data-lucide="external-link"></i></button>
+                        <button class="icon-btn" onclick="exportPDF(${p.id})" title="Esporta PDF"><i data-lucide="file-text"></i></button>
+                        <button class="icon-btn text-error" onclick="deleteProj(${p.id})" title="Elimina"><i data-lucide="trash-2"></i></button>
+                    </div>
                 </div>
             </div>`;
         });
@@ -1519,7 +1619,7 @@ function loadArchive() {
     if (projFv.length === 0) {
         listFv.innerHTML = createEmpty('Nessun progetto Fotovoltaico.');
     } else {
-        projFv.reverse().forEach(p => {
+        [...projFv].reverse().forEach(p => {
             const detailStr = `Range Moduli: ${p.data.nmin} - ${p.data.nmax}`;
             listFv.innerHTML += `
             <div class="archive-card fv">
@@ -1527,16 +1627,17 @@ function loadArchive() {
                     <div class="archive-card-icon"><i data-lucide="sun"></i></div>
                     <div class="archive-card-info">
                         <div class="archive-info-title">${p.name || 'Senza Nome'}</div>
-                        <div class="archive-info-sub">
-                            <div><i data-lucide="calendar" style="width:12px;height:12px;display:inline;margin-right:4px;"></i>${p.date || ''}</div>
-                            <div style="margin-top:2px; color:var(--accent-fv); font-weight:700;">${detailStr}</div>
-                        </div>
+                        <div class="archive-info-date"><i data-lucide="calendar"></i>${p.date || ''}</div>
+                        <div class="archive-info-sub">${detailStr}</div>
                     </div>
                 </div>
-                <div class="archive-card-actions">
-                     <button class="icon-btn" style="color:var(--success)" onclick="restoreProject(${p.id})" title="Apri"><i data-lucide="external-link"></i></button>
-                     <button class="icon-btn" style="color:var(--primary)" onclick="exportPDF(${p.id})" title="PDF"><i data-lucide="file-text"></i></button>
-                     <button class="icon-btn text-error" onclick="deleteProj(${p.id})" title="Elimina"><i data-lucide="trash-2"></i></button>
+                <div class="archive-card-footer">
+                    <span class="archive-type-badge">Fotovoltaico</span>
+                    <div class="archive-card-actions">
+                        <button class="icon-btn" onclick="restoreProject(${p.id})" title="Apri"><i data-lucide="external-link"></i></button>
+                        <button class="icon-btn" onclick="exportPDF(${p.id})" title="Esporta PDF"><i data-lucide="file-text"></i></button>
+                        <button class="icon-btn text-error" onclick="deleteProj(${p.id})" title="Elimina"><i data-lucide="trash-2"></i></button>
+                    </div>
                 </div>
             </div>`;
         });
@@ -1551,7 +1652,7 @@ function loadArchive() {
     } else {
         presetInv.forEach(inv => {
             listPreset.innerHTML += `
-            <div class="archive-card preset">
+            <div class="archive-card inverter">
                 <div class="archive-card-header" onclick="restorePresetInv('${inv.id}')">
                     <div class="archive-card-icon"><i data-lucide="cpu"></i></div>
                     <div class="archive-card-info">
@@ -1559,15 +1660,18 @@ function loadArchive() {
                         <div class="archive-info-sub">Preset Inverter</div>
                     </div>
                 </div>
-                <div class="archive-card-actions">
-                     <button class="icon-btn" style="color:var(--accent-archive)" onclick="restorePresetInv('${inv.id}')" title="Usa"><i data-lucide="plus-circle"></i></button>
-                     <button class="icon-btn text-error" onclick="deletePresetGlobal('${inv.id}')" title="Elimina"><i data-lucide="trash-2"></i></button>
+                <div class="archive-card-footer">
+                    <span class="archive-type-badge">Inverter</span>
+                    <div class="archive-card-actions">
+                        <button class="icon-btn" onclick="restorePresetInv('${inv.id}')" title="Usa preset"><i data-lucide="plus-circle"></i></button>
+                        <button class="icon-btn text-error" onclick="deletePresetGlobal('${inv.id}')" title="Elimina"><i data-lucide="trash-2"></i></button>
+                    </div>
                 </div>
             </div>`;
         });
         presetPan.forEach(pan => {
             listPreset.innerHTML += `
-            <div class="archive-card preset">
+            <div class="archive-card pannello">
                 <div class="archive-card-header" onclick="restorePresetPan('${pan.id}')">
                     <div class="archive-card-icon"><i data-lucide="layout-grid"></i></div>
                     <div class="archive-card-info">
@@ -1575,9 +1679,12 @@ function loadArchive() {
                         <div class="archive-info-sub">Preset Pannello</div>
                     </div>
                 </div>
-                <div class="archive-card-actions">
-                     <button class="icon-btn" style="color:var(--accent-archive)" onclick="restorePresetPan('${pan.id}')" title="Usa"><i data-lucide="plus-circle"></i></button>
-                     <button class="icon-btn text-error" onclick="deletePresetGlobal('${pan.id}')" title="Elimina"><i data-lucide="trash-2"></i></button>
+                <div class="archive-card-footer">
+                    <span class="archive-type-badge">Pannello</span>
+                    <div class="archive-card-actions">
+                        <button class="icon-btn" onclick="restorePresetPan('${pan.id}')" title="Usa preset"><i data-lucide="plus-circle"></i></button>
+                        <button class="icon-btn text-error" onclick="deletePresetGlobal('${pan.id}')" title="Elimina"><i data-lucide="trash-2"></i></button>
+                    </div>
                 </div>
             </div>`;
         });
@@ -1587,7 +1694,8 @@ function loadArchive() {
 }
 
 function restoreProject(id) {
-    let p = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+    let p;
+    try { p = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]'); } catch (e) { p = []; }
     const proj = p.find(x => x.id === id);
     if (!proj) return;
 
@@ -1601,7 +1709,7 @@ function restoreProject(id) {
 
     const ui = proj.uiState;
     if (!ui) {
-        alert("Progetto vecchio, dati di ripristino non disponibili.");
+        alert("Dati di ripristino non disponibili per questo progetto.");
         return;
     }
 
@@ -1663,20 +1771,21 @@ function restoreProject(id) {
     const btnSave = document.getElementById('btn-save');
     if (btnSave) btnSave.title = 'Aggiorna Progetto';
 
-    showToast('Progetto "' + proj.name + '" ripristinato. Usa Salva per aggiornarlo.');
+    showToast('Progetto "' + proj.name + '" ripristinato.');
 }
 
 function deleteProj(id) {
     if (!confirm("Cancellare il progetto?")) return;
-    let p = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
+    let p;
+    try { p = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]'); } catch (e) { p = []; }
     p = p.filter(x => x.id !== Number(id));
     localStorage.setItem('archivio_elettrosuite', JSON.stringify(p));
     loadArchive();
 }
 
 // Global scope window wrappers for HTML inline onclick within Preset Archive lists
-window.restorePresetInv = function (id) { loadPreset('inverter', id); navigateTo('sec-fotovoltaico'); showToast("Preset Inverter caricato!"); };
-window.restorePresetPan = function (id) { loadPreset('pannello', id); navigateTo('sec-fotovoltaico'); showToast("Preset Pannello caricato!"); };
+window.restorePresetInv = function (id) { loadPreset('inverter', id); navigateTo('sec-fotovoltaico'); showToast("Preset inverter caricato."); };
+window.restorePresetPan = function (id) { loadPreset('pannello', id); navigateTo('sec-fotovoltaico'); showToast("Preset pannello caricato."); };
 window.deletePresetGlobal = function (id) {
     if (id.startsWith('inv_')) {
         let arr = getPresets('inverter').filter(x => x.id !== id);
@@ -1742,7 +1851,7 @@ function exportArchivioJSON(type) {
         else if (type === 'fv') exportData = allProjs.filter(p => p.data?.type === 'pv');
 
         if (!exportData || exportData.length === 0) {
-            alert("Nessun progetto da esportare per questa categoria."); return;
+            alert("Nessun progetto disponibile per l'esportazione."); return;
         }
     }
 
@@ -1782,10 +1891,10 @@ function importArchivioJSON(type, inputElement) {
                 // Create new unified array using spread
                 localStorage.setItem('archivio_elettrosuite', JSON.stringify([...oldProjs, ...imported]));
             }
-            showToast("Importazione completata con successo!");
+            showToast("Importazione completata.");
             loadArchive(); // Refresh currently viewed archive
         } catch (err) {
-            alert("Errore nell'importazione: il file JSON potrebbe essere corrotto o incompatibile.\n" + err);
+            alert("Errore di importazione: file JSON corrotto o incompatibile.\n" + err);
         }
         inputElement.value = ""; // Reset input
     };
@@ -1796,7 +1905,7 @@ window.exportPDF = function (id) {
     let p = JSON.parse(localStorage.getItem('archivio_elettrosuite') || '[]');
     const proj = p.find(x => x.id === Number(id));
     if (!proj) {
-        alert("Progetto non trovato nell'archivio.");
+        alert("Progetto non trovato in archivio.");
         return;
     }
     generaPDF(proj);
@@ -1810,7 +1919,7 @@ document.getElementById('btn-export-pdf-pv')?.addEventListener('click', generate
 
 function generateActivePdf() {
     if (!currentResult || currentResult.status !== 'OK') {
-        alert("Nessun calcolo valido da esportare.");
+        alert("Eseguire un calcolo valido prima di esportare.");
         return;
     }
     const name = prompt("Inserisci un nome per il report:", "Progetto_Corrente");
@@ -1857,9 +1966,11 @@ function generaPDF(proj) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         const d = proj.data;
-        const brandColor = [64, 64, 64]; // Professional Antracite
-        const darkBg = [50, 50, 50]; // Graphite Dark
-        const accentColor = [100, 100, 100]; // Muted gray accent
+        const brandColor = [91, 155, 213];   // App primary blue #5B9BD5
+        const darkBg = [22, 22, 24];            // App --bg near-black
+        const accentColor = [60, 110, 170];     // Mid-blue accent
+        const formulaBg = [240, 246, 253];       // Light-blue formula box bg
+        const navyText = [24, 52, 95];           // Dark navy for titles
         let startY = 75;
 
         // --- ENCODING HELPER (Moved to top) ---
@@ -1931,7 +2042,7 @@ function generaPDF(proj) {
             const top = y - h/2 + 4.5;
             const bot = y + h/2 - 0.5;
             doc.setLineWidth(0.65);
-            doc.setDrawColor(0, 0, 0);
+            doc.setDrawColor(...navyText);
             if (type === '[') {
                 doc.line(x + w, top, x, top);
                 doc.line(x, top, x, bot);
@@ -1946,7 +2057,7 @@ function generaPDF(proj) {
         };
 
         const renderMath = (doc, formula, centerX, y, fontSize) => {
-            doc.setTextColor(0, 0, 0);
+            doc.setTextColor(...navyText);
 
             if (formula.includes('\\frac')) {
                 const fracIdx = formula.indexOf('\\frac');
@@ -2019,7 +2130,7 @@ function generaPDF(proj) {
                         drawSegs(doc, segDen, fCenterX - (wD / 2), y + 5.5, fontSize * 0.88); 
                         
                         doc.setLineWidth(0.45);
-                        doc.setDrawColor(0, 0, 0);
+                        doc.setDrawColor(...navyText);
                         doc.line(sx + 0.5, y, sx + fW - 0.5, y);
                         sx += fW;
 
@@ -2042,13 +2153,17 @@ function generaPDF(proj) {
 
         // Helper: Accented Section Title
         const drawSectionTitle = (text, y) => {
+            // Left accent bar (blue)
             doc.setFillColor(...brandColor);
-            doc.rect(14, y - 4, 1.5, 5, 'F');
-            doc.setTextColor(40, 40, 40);
+            doc.rect(14, y - 5, 3, 7, 'F');
+            // Light-blue background strip
+            doc.setFillColor(...formulaBg);
+            doc.rect(17, y - 5, 179, 7, 'F');
+            doc.setTextColor(...navyText);
             doc.setFont("helvetica", "bold");
             doc.setFontSize(11);
-            doc.text(text.toUpperCase(), 18, y);
-            return y + 8;
+            doc.text(text.toUpperCase(), 22, y);
+            return y + 9;
         };
 
         // Helper: Render text with centered formulas
@@ -2070,9 +2185,9 @@ function generaPDF(proj) {
                 if (block.startsWith('[F]') && block.endsWith('[/F]')) {
                     if (currentY > 255) { doc.addPage(); currentY = 25; }
                     const formula = block.substring(3, block.length - 4);
-                    currentY += 6; 
+                    currentY += 6;
                     renderMath(doc, formula, 105, currentY, 11.5);
-                    currentY += 12; 
+                    currentY += 12;
                 } else {
                     const cleanBlock = block.trim();
                     if (!cleanBlock) return;
@@ -2137,11 +2252,13 @@ function generaPDF(proj) {
 
                             line.tokens.forEach(tk => {
                                 if (tk.type === 'formula') {
+                                    doc.setTextColor(...brandColor);
                                     const segs = parseToSegments(tk.text);
                                     curX = drawSegs(doc, segs, curX, currentY, 10.5);
+                                    doc.setTextColor(40, 40, 60);
                                 } else if (tk.type === 'text') {
                                     doc.setFont("helvetica", "normal"); doc.setFontSize(10.5);
-                                    doc.setTextColor(50,50,50);
+                                    doc.setTextColor(40, 40, 60);
                                     doc.text(tk.text, curX, currentY);
                                     curX += tk.width;
                                 } else if (tk.type === 'space') {
@@ -2158,25 +2275,31 @@ function generaPDF(proj) {
         };
 
 
-        // Header Corporate (Dark & Modern)
-        doc.setFillColor(...darkBg);
+        // Header — azzurrino uniforme
+        doc.setFillColor(...formulaBg);
         doc.rect(0, 0, 210, 35, 'F');
+        // Thin blue bottom border
+        doc.setDrawColor(...brandColor);
+        doc.setLineWidth(0.6);
+        doc.line(0, 35, 210, 35);
 
-        doc.setTextColor(255, 255, 255);
+        // Title in navy
+        doc.setTextColor(...navyText);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(20);
-        doc.text("ELECTROSUITE", 14, 18);
+        doc.text("ELECTROSUITE", 14, 17);
 
-        doc.setFontSize(10);
+        // Subtitle in brand blue
+        doc.setFontSize(8.5);
         doc.setFont("helvetica", "normal");
-        doc.setTextColor(180, 180, 180);
+        doc.setTextColor(...brandColor);
         doc.text("RELAZIONE TECNICA DI DIMENSIONAMENTO ESECUTIVO", 14, 26);
 
-        // Metadata (Right Aligned)
-        doc.setFontSize(9);
-        doc.setTextColor(255, 255, 255);
-        doc.text(`Data Documento: ${safeStr(proj.date)}`, 196, 18, { align: 'right' });
-        doc.text(`Identificativo Progetto: ${safeStr(proj.name || 'Standard')}`, 196, 26, { align: 'right' });
+        // Metadata (Right Aligned) in navy
+        doc.setFontSize(8.5);
+        doc.setTextColor(...navyText);
+        doc.text(`Data: ${safeStr(proj.date)}`, 198, 17, { align: 'right' });
+        doc.text(`Progetto: ${safeStr(proj.name || 'Standard')}`, 198, 26, { align: 'right' });
 
         // Hero Box (The Result in Focus)
         let mainResultHeader = "";
@@ -2194,20 +2317,22 @@ function generaPDF(proj) {
             mainResultHeader = "CONDUTTORE ADOTTATO:";
             mainResultVal = `Sezione: ${displaySec} mm² | Iz Corretta: ${d.iz.toFixed(1)} A`;
 
-            // Draw Hero Box ONLY for Cable Sizing
-            doc.setFillColor(248, 250, 252);
+            // Hero box — light-blue with left accent bar and navy text
+            doc.setFillColor(...formulaBg);
             doc.setDrawColor(...brandColor);
-            doc.setLineWidth(0.3);
-            doc.roundedRect(14, 42, 182, 20, 2, 2, 'FD');
+            doc.setLineWidth(0.5);
+            doc.roundedRect(14, 42, 182, 22, 2, 2, 'FD');
+            doc.setFillColor(...brandColor);
+            doc.rect(14, 42, 4, 22, 'F');
 
-            doc.setTextColor(...brandColor);
+            doc.setTextColor(...navyText);
             doc.setFont("helvetica", "bold");
-            doc.setFontSize(10); // Slightly larger
-            doc.text(mainResultHeader, 18, 50);
+            doc.setFontSize(9.5);
+            doc.text(mainResultHeader, 22, 51);
 
             doc.setFontSize(14);
-            doc.setTextColor(20, 20, 20);
-            doc.text(safeStr(mainResultVal), 18, 57);
+            doc.setTextColor(...navyText);
+            doc.text(safeStr(mainResultVal), 22, 59);
         }
 
         // --- COMPONENT MODELS (Prominent for PV) ---
@@ -2215,7 +2340,7 @@ function generaPDF(proj) {
             let modelY = 48;
             if (d.inputs.inverterName || d.inputs.moduleName) {
                 doc.setFontSize(10);
-                doc.setTextColor(60, 60, 60);
+                doc.setTextColor(...navyText);
                 doc.setFont("helvetica", "bold");
                 let modelText = "";
                 if (d.inputs.moduleName) modelText += `PRESET MODULO: ${d.inputs.moduleName.toUpperCase()}`;
@@ -2238,22 +2363,22 @@ function generaPDF(proj) {
             pageBreak: 'avoid',
             styles: {
                 font: 'helvetica',
-                fontSize: 9.5, // Increased from 8.5
+                fontSize: 9.5,
                 cellPadding: 3,
-                textColor: [50, 50, 50],
-                lineColor: [220, 220, 220],
-                lineWidth: 0.1
+                textColor: [40, 40, 60],
+                lineColor: [200, 218, 238],
+                lineWidth: 0.15
             },
             headStyles: {
-                fillColor: [248, 249, 250],
-                textColor: [50, 50, 50],
+                fillColor: darkBg,
+                textColor: [255, 255, 255],
                 fontStyle: 'bold',
-                fontSize: 10.5, // Increased from 9
-                lineWidth: 0.1,
-                lineColor: [220, 220, 220]
+                fontSize: 10.5,
+                lineWidth: 0.15,
+                lineColor: brandColor
             },
             alternateRowStyles: {
-                fillColor: [254, 254, 254]
+                fillColor: [245, 249, 255]
             },
         };
 
@@ -2337,9 +2462,10 @@ function generaPDF(proj) {
                         ['Sezione Cavo Solare CC', `${cfg.cable} mm\u00b2`],
                         ['Portata Cavo (30\u00b0C) [Iz_base]', `${izBase} A`],
                         ['Portata corretta (70\u00b0C) [Iz_eff]', `${cfg.izEff.toFixed(1)} A`],
+                        ['Verifica Cavo \u2013 IB=1,25\u00b7Isc (\u03b8a=80\u00b0C)', `IB=${(d.inputs.isc*1.25).toFixed(1)} A | Iz(80\u00b0C)=${(cfg.iz80||0).toFixed(1)} A \u2192 ${cfg.cavoCheck?.ok!==false?'\u2714 OK':'\u26A0 NON OK'}`],
                         ['Caduta di Tensione (Delta V%)', `${(cfg.dv || 0).toFixed(2)} %`],
-                        ['Protezione di Stringa (Fusibile)', `${cfg.fuse}A gPV`],
-                        ['Scaricatore Sovratensioni (SPD)', `Ucpv >= ${cfg.vsez.toFixed(0)} V`],
+                        ['Protezione di Stringa (Fusibile)', `In=${cfg.fuse} A gPV | ${(d.inputs.isc*1.25).toFixed(1)}\u2264In\u2264${(cfg.fuseCheck?.max||0).toFixed(1)} A \u2192 ${cfg.fuseCheck?.ok!==false?'\u2714 OK':'\u26A0 NON OK'}`],
+                        ['Scaricatore Sovratensioni (SPD)', `Uc \u2265 1,2\u00b7Voc,max = ${(cfg.spdCheck?.ucReq||(cfg.vsez*1.2)||0).toFixed(0)} V`],
                         ['Corrente Isc totale ingresso', `${cfg.iscMax.toFixed(1)} A`],
                     ],
                 });
@@ -2370,6 +2496,36 @@ function generaPDF(proj) {
                     1: { textColor: [39, 174, 96], fontStyle: 'bold' },
                     3: { textColor: [39, 174, 96], fontStyle: 'bold' },
                     5: { textColor: [39, 174, 96], fontStyle: 'bold' }
+                },
+                styles: { fontSize: 6.5 }
+            });
+
+            // Tabella Verifiche Protezioni (cavo @ 80°C, fusibile range, SPD ×1.2)
+            startY = doc.lastAutoTable.finalY + 10;
+            if (startY > 230) { doc.addPage(); startY = 25; }
+            startY = drawSectionTitle('Verifiche Protezioni di Stringa', startY);
+            const protCheckRows = d.mpptConfig.map(cfg => {
+                const cavoOk = cfg.cavoCheck?.ok !== false;
+                const fuseOk = cfg.fuseCheck?.ok !== false;
+                return [
+                    `MPPT ${cfg.mppt}`,
+                    cavoOk ? 'RISPETTATA' : 'NON RISPETTATA',
+                    safeStr(`IB=${(d.inputs.isc*1.25).toFixed(1)}A; Iz(80\u00b0C)=${(cfg.iz80||0).toFixed(1)}A`),
+                    fuseOk ? 'RISPETTATA' : 'NON RISPETTATA',
+                    safeStr(`In=${cfg.fuse}A [${(d.inputs.isc*1.25).toFixed(1)}\u2264In\u2264${(cfg.fuseCheck?.max||0).toFixed(1)}A]`),
+                    'REQUISITO',
+                    safeStr(`Uc\u2265${(cfg.spdCheck?.ucReq||(cfg.vsez*1.2)||0).toFixed(0)}V (1,2\u00d7${(cfg.vsez||0).toFixed(0)}V)`)
+                ];
+            });
+            doc.autoTable({
+                ...cleanTableTheme,
+                startY: startY,
+                head: [['Canale', 'Cavo (Iz\u2265IB)', 'Dettaglio Cavo', 'Fusibile (In range)', 'Dettaglio Fusibile', 'SPD', 'Dettaglio SPD']],
+                body: protCheckRows,
+                columnStyles: {
+                    1: { textColor: [39, 174, 96], fontStyle: 'bold' },
+                    3: { textColor: [39, 174, 96], fontStyle: 'bold' },
+                    5: { textColor: [100, 100, 200], fontStyle: 'bold' }
                 },
                 styles: { fontSize: 6.5 }
             });
@@ -2412,7 +2568,7 @@ function generaPDF(proj) {
             doc.text("APPROFONDIMENTO TECNICO E METODOLOGIA DI CALCOLO (PV)", marginX + 5, yPos - 2.5);
 
             yPos += 12;
-            doc.setTextColor(40, 40, 40); // Reset to dark text for content
+            doc.setTextColor(...navyText); // Reset to dark nav text for content
 
             const sections = [
                 {
@@ -2437,7 +2593,7 @@ function generaPDF(proj) {
                 },
                 {
                     title: "5. Dimensionamento Cavi Solari (Lato Corrente Continua)",
-                    text: "Le sezioni dei cavi solari sono calcolate per garantire che la portata [iF]Iz[/iF] sia superiore alla protezione di stringa. Per i conduttori del lato DC (stringhe), viene applicato un coefficiente correttivo [iF]K_{solare} = 0.58[/iF]. Tale fattore tiene conto delle condizioni di posa gravose tipiche dell'ambiente fotovoltaico, dove la vicinanza ai moduli e l'irraggiamento diretto portano la temperatura operativa dei cavi a circa 70\u00b0C (Rif. Guida CEI 82-25). La caduta di tensione percentuale ([iF]\\Delta V[/iF]%) sul tratto in Corrente Continua \u00e8 verificata tramite la formula: [F]\\Delta V = \\frac{2 \\cdot L \\cdot I \\cdot \\rho}{S}[/F]"
+                    text: "Le sezioni dei cavi solari sono calcolate per garantire che la portata [iF]I_z[/iF] sia superiore alla corrente di progetto [iF]I_B = 1{,}25 \\cdot I_{sc}[/iF] della singola stringa. La verifica termica viene eseguita nella condizione cautelativa di posa sul retro dei moduli ([iF]\\theta_a = 80\u00b0C[/iF]), applicando il coefficiente correttivo: [F]K_{80} = \\sqrt{\\dfrac{90 - 80}{90 - 30}} \\approx 0{,}41[/F] Per il dimensionamento della sezione minima si utilizza invece il coefficiente a 70\u00b0C ([iF]K = 0{,}58[/iF]) come riferimento nominale per la caduta di tensione (Rif. Guida CEI 82-25). La caduta di tensione percentuale ([iF]\\Delta V[/iF]%) sul tratto in Corrente Continua \u00e8 verificata tramite la formula: [F]\\Delta V = \\frac{2 \\cdot L \\cdot I \\cdot \\rho}{S}[/F]"
                 },
                 {
                     title: "6. Verifica delle Tensioni di Stringa",
@@ -2445,11 +2601,11 @@ function generaPDF(proj) {
                 },
                 {
                     title: "7. Protezione contro le Sovracorrenti",
-                    text: "Il dimensionamento delle protezioni di stringa (fusibili gPV) rispetta la Norma CEI 64-8, art. 712. Per configurazioni con 1 o 2 stringhe in parallelo per singolo MPPT indipendente, la protezione non \u00e8 normativamente richiesta in quanto le correnti inverse non possono superare la portata del modulo. Per 3 o pi\u00f9 stringhe in parallelo, la taglia nominale del fusibile ([iF]In[/iF]) \u00e8 calcolata per rispettare il range: [F]1,1 \\cdot Isc_{max} \\le In \\le Limite Modulo[/F] [iF]Isc_{max}[/iF] \u00e8 pari alla [iF]Isc[/iF] in STC maggiorata del 25%: [F]Isc_{max} = Isc \\cdot 1,25[/F] Il 'Limite Modulo' corrisponde alla Taglia Max Fusibile dichiarata dal costruttore, oppure al valore della Corrente Inversa Massima (I_MOD_MAX_OCPR) moltiplicata per 1,35."
+                    text: "Il dimensionamento delle protezioni di stringa (fusibili gPV) rispetta la Norma CEI 64-8, art. 712. La taglia nominale del fusibile ([iF]I_n[/iF]) deve rispettare il doppio vincolo: [F]1{,}25 \\cdot I_{sc} \\le I_n \\le I_{mMAX}[/F] dove [iF]I_{mMAX}[/iF] \u00e8 la corrente massima indicata dal costruttore del modulo. Se il costruttore fornisce la Taglia Max Fusibile, si usa direttamente come [iF]I_{mMAX}[/iF]. Se fornisce la Corrente Inversa Massima (OCPR), si calcola [iF]I_{mMAX} = I_{OCPR} \\cdot 1{,}35[/iF].  Il fusibile commerciale viene selezionato come il primo valore disponibile nella serie normalizzata (10, 12, 15, 20, 25, 30, 32, 40 A) con taglia maggiore o uguale a [iF]1{,}25 \\cdot I_{sc}[/iF]."
                 },
                 {
                     title: "8. Protezione contro le Sovratensioni",
-                    text: "La scelta dello Scaricatore di Sovratensione (SPD) lato continua viene effettuata verificando che la tensione massima continuativa dell'SPD ([iF]Ucpv[/iF]) sia maggiore o uguale alla massima tensione a vuoto generata dalla stringa ([iF]Voc_{max}[/iF]). La [iF]Voc_{max}[/iF] viene calcolata partendo dalla [iF]Voc[/iF] in condizioni STC e applicando il coefficiente di temperatura del pannello ([iF]\\beta[/iF]) riferito alla temperatura minima di progetto dell'impianto (es. -10\u00b0C)."
+                    text: "La scelta dello Scaricatore di Sovratensione (SPD) lato continua viene effettuata verificando che la tensione massima continuativa dell'SPD ([iF]U_c[/iF]) sia maggiore o uguale a 1,2 volte la massima tensione a vuoto generata dalla stringa ([iF]V_{oc,max}[/iF]): [F]U_c \\ge 1{,}2 \\cdot V_{oc,max}[/F] Il fattore 1,2 (margine del 20%) \u00e8 prescritto dalla normativa per garantire il corretto esercizio continuativo in presenza di transitori di commutazione. La [iF]V_{oc,max}[/iF] viene calcolata partendo dalla [iF]V_{oc}[/iF] in condizioni STC e applicando il coefficiente di temperatura dichiarto dal costruttore ([iF]\\beta[/iF]) alla temperatura minima di progetto: [F]V_{oc,max} = N_s \\cdot V_{oc,STC} \\cdot \\left[1 + \\frac{\\beta}{100}\\cdot(T_{min}-25)\\right][/F]"
                 }
             ];
 
@@ -2463,7 +2619,7 @@ function generaPDF(proj) {
 
                 doc.setFont("helvetica", "bold");
                 doc.setFontSize(10.5);
-                doc.setTextColor(...brandColor);
+                doc.setTextColor(...navyText);
                 doc.text(s.title, marginX, yPos + 6);
                 yPos += 12;
 
@@ -2689,7 +2845,7 @@ function generaPDF(proj) {
 
                 doc.setFont("helvetica", "bold");
                 doc.setFontSize(10.5);
-                doc.setTextColor(...brandColor);
+                doc.setTextColor(...navyText);
                 doc.text(s.title, marginXM, yPosMethod + 6);
                 yPosMethod += 12;
 
@@ -2702,14 +2858,16 @@ function generaPDF(proj) {
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
             
-            // Footer Line
-            doc.setDrawColor(220, 220, 220);
-            doc.setLineWidth(0.2);
+            // Footer — thin blue accent line
+            doc.setDrawColor(...brandColor);
+            doc.setLineWidth(0.4);
             doc.line(14, 282, 196, 282);
+            doc.setFillColor(...brandColor);
+            doc.rect(14, 282, 182, 0.4, 'F');
 
             doc.setFont("helvetica", "normal");
             doc.setFontSize(8);
-            doc.setTextColor(120, 120, 120);
+            doc.setTextColor(...navyText);
             doc.text("Relazione Generata da ElectroSuite v4.0 \u2014 Professional Electrical Design Suite", 14, 288);
             doc.text(`Pagina ${i} di ${totalPages}`, 196, 288, { align: "right" });
         }
@@ -2717,7 +2875,7 @@ function generaPDF(proj) {
         doc.save(`ElectroSuite_${proj.name.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
         console.error("Errore PDF:", error);
-        alert("Errore durante la generazione del PDF: " + error.message);
+        alert("Errore nella generazione del PDF: " + error.message);
     }
 }
 function loadExternalScripts() {

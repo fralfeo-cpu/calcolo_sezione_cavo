@@ -1,9 +1,11 @@
-const CACHE_NAME = 'cablesizer-v5';
+const CACHE_NAME = 'electrosuite-cache';
 const urlsToCache = [
   './index.html',
   './style.css',
   './app.js',
   './db.js',
+  './engine-cavi.js',
+  './engine-fv.js',
   './manifest.json',
   './icon.png'
 ];

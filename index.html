@@ -7,10 +7,11 @@
     <meta name="theme-color" content="#005FB8">
     <meta name="description"
         content="ElectroSuite – Dimensionamento cavi, verifica ΔV e stringhe fotovoltaico secondo CEI 64-8.">
-    <title>ElectroSuite v4.0 – Dimensionamento Elettrico</title>
+    <title>ElectroSuite – Dimensionamento Elettrico</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
@@ -20,25 +21,51 @@
         <main class="content">
 
             <!-- ══ FIXED GLOBAL TOP BAR ══ -->
-            <header class="top-bar">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <h1>ElectroSuite</h1>
-                    <div class="badge">v4.0</div>
+            <header class="top-bar" id="global-top-bar">
+                <div class="top-bar-inner">
+                    <div class="top-bar-brand">
+                        <button class="top-bar-back hidden" id="btn-top-bar-back" aria-label="Torna alla Home">
+                            <i data-lucide="arrow-left"></i>
+                        </button>
+                        <i data-lucide="zap" class="brand-icon"></i>
+                        <h1 id="top-bar-title">ElectroSuite</h1>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <nav class="desktop-nav" aria-label="Navigazione principale">
+                            <button class="desktop-nav-btn active" data-target="sec-home"><i data-lucide="home"></i>Home</button>
+                            <button class="desktop-nav-btn" data-target="sec-calc"><i data-lucide="cable"></i>Cavi</button>
+                            <button class="desktop-nav-btn" data-target="sec-fotovoltaico"><i data-lucide="sun"></i>FV</button>
+                            <button class="desktop-nav-btn" data-target="sec-dv"><i data-lucide="activity"></i>ΔV</button>
+                            <button class="desktop-nav-btn" data-target="sec-archive"><i data-lucide="archive"></i>Archivio</button>
+                        </nav>
+                        <button class="icon-btn" id="btn-theme-toggle" title="Cambia Tema" aria-label="Cambia tema chiaro/scuro">
+                            <i data-lucide="sun"></i>
+                        </button>
+                    </div>
                 </div>
-                <button class="icon-btn" id="btn-theme-toggle" title="Cambia Tema">
-                    <i data-lucide="moon"></i>
-                </button>
             </header>
             <!-- Spacer to compensate for the fixed top-bar height -->
             <div id="top-bar-spacer"></div>
 
             <!-- ══ SECTION: HOME / DASHBOARD ══ -->
             <section id="sec-home" class="view-section active">
+
                 <!-- HERO SECTION -->
                 <div class="hero-section">
-                    <div class="hero-content">
-                        <h2>Benvenuto in <span class="brand-accent">ElectroSuite</span></h2>
-                        <p>Scegli uno strumento dal menù sottostante per iniziare il tuo progetto.</p>
+                    <div class="hero-inner">
+                        <div class="hero-badge">
+                            <i data-lucide="shield-check"></i>
+                            CEI 64-8 / CEI 11-17
+                        </div>
+                        <h2 class="hero-title">Calcolo <span class="hero-accent">Elettrico</span><br>Professionale</h2>
+                        <p class="hero-sub">Dimensiona cavi, progetta impianti FV e verifica la caduta di tensione con algoritmi conformi alle norme CEI.</p>
+                        <div class="hero-tags">
+                            <span class="hero-tag">BT / MT</span>
+                            <span class="hero-tag">Stringhe FV</span>
+                            <span class="hero-tag">CEI 64-8</span>
+                            <span class="hero-tag">MPPT</span>
+                            <span class="hero-tag">CEI 11-17</span>
+                        </div>
                     </div>
                     <div class="hero-visual">
                         <i data-lucide="zap" class="floating-zap"></i>
@@ -46,53 +73,52 @@
                 </div>
 
                 <div class="dashboard-header">
-                    <h3>Scegli uno Strumento</h3>
-                    <p>Potenti algoritmi a portata di clic</p>
+                    <h3>Strumenti di Calcolo</h3>
                 </div>
 
                 <div class="dashboard-grid">
                     <!-- Card 1: Dimensionamento Cavi -->
-                    <div class="dash-card featured cable" data-target="sec-calc">
+                    <div class="dash-card cable" data-target="sec-calc">
                         <div class="dash-icon"><i data-lucide="cable"></i></div>
                         <div class="dash-card-body">
                             <h3>Dimensionamento Cavi</h3>
-                            <p>Calcolo sezioni, portate Iz e coordinamento BT/MT.</p>
+                            <p>Sezione, portata Iz e coordinamento con la protezione. BT e MT.</p>
                         </div>
                         <div class="dash-card-footer">
-                            <span>Inizia Calcolo</span> <i data-lucide="chevron-right"></i>
+                            <span>Calcola</span><i data-lucide="arrow-right"></i>
                         </div>
                     </div>
-                    <!-- Card 3: Stringhe Fotovoltaico -->
-                    <div class="dash-card featured fv" data-target="sec-fotovoltaico">
+                    <!-- Card 2: Stringhe Fotovoltaico -->
+                    <div class="dash-card fv" data-target="sec-fotovoltaico">
                         <div class="dash-icon"><i data-lucide="sun"></i></div>
                         <div class="dash-card-body">
                             <h3>Progettazione FV</h3>
-                            <p>Configurazione MPPT, stringhe e protezioni CC.</p>
+                            <p>Configurazione MPPT, stringhe, cavi e protezioni CC.</p>
                         </div>
                         <div class="dash-card-footer">
-                            <span>Inizia Progetto</span> <i data-lucide="chevron-right"></i>
+                            <span>Progetta</span><i data-lucide="arrow-right"></i>
                         </div>
                     </div>
-                    <!-- Card 2: Verifica Rapida ΔV -->
+                    <!-- Card 3: Verifica Rapida ΔV -->
                     <div class="dash-card dv" data-target="sec-dv">
                         <div class="dash-icon"><i data-lucide="activity"></i></div>
                         <div class="dash-card-body">
                             <h3>Verifica Rapida ΔV</h3>
-                            <p>Controlla istantaneamente la caduta di tensione.</p>
+                            <p>Caduta di tensione percentuale su sezione nota.</p>
                         </div>
                         <div class="dash-card-footer">
-                            <span>Apri Strumento</span> <i data-lucide="chevron-right"></i>
+                            <span>Verifica</span><i data-lucide="arrow-right"></i>
                         </div>
                     </div>
                     <!-- Card 4: Archivio Progetti -->
                     <div class="dash-card archive" data-target="sec-archive">
-                        <div class="dash-icon"><i data-lucide="archive"></i></div>
+                        <div class="dash-icon"><i data-lucide="database"></i></div>
                         <div class="dash-card-body">
                             <h3>Archivio Progetti</h3>
-                            <p>Cronologia e ripristino calcoli precedenti.</p>
+                            <p>Cronologia e ripristino calcoli e preset salvati.</p>
                         </div>
                         <div class="dash-card-footer">
-                            <span>Consulta</span> <i data-lucide="archive"></i>
+                            <span>Archivio</span><i data-lucide="arrow-right"></i>
                         </div>
                     </div>
                 </div>
@@ -100,13 +126,6 @@
 
             <!-- ══ SECTION: DIMENSIONAMENTO CAVI ══ -->
             <section id="sec-calc" class="view-section hidden">
-                <div class="top-app-bar top-cable">
-                    <button class="icon-btn-text btn-home" data-target="sec-home">
-                        <i data-lucide="arrow-left"></i> Home
-                    </button>
-                    <h2>Dimensionamento Cavi</h2>
-                    <div style="width: 80px;"></div>
-                </div>
 
                 <div class="module-container">
                     <!-- 1. RESULT CARD FIRST (top, full width) -->
@@ -116,48 +135,43 @@
                             Inserisci i parametri per calcolare la sezione.
                         </div>
                         <div class="result-data hidden" id="res-data">
-                            <div class="res-header"
-                                style="flex-direction: column; gap: 1rem; border-bottom: none; padding-bottom: 0;">
-                                <div
-                                    style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                                    <div class="res-label">Esito Calcolo e Coordinamento</div>
-                                    <div style="display: flex; gap: 8px;">
-                                        <button class="icon-btn" id="btn-export-pdf" title="Esporta PDF"
-                                            style="color: var(--primary);">
-                                            <i data-lucide="download"></i>
-                                        </button>
-                                        <button class="icon-btn primary" id="btn-save" title="Salva Progetto">
-                                            <i data-lucide="save"></i>
-                                        </button>
+                            <!-- Intestazione: titolo + azioni -->
+                            <div class="res-top-row">
+                                <div class="res-section-title">Esito Calcolo e Coordinamento</div>
+                                <div class="res-actions">
+                                    <button class="icon-btn" id="btn-export-pdf" title="Esporta PDF">
+                                        <i data-lucide="download"></i>
+                                    </button>
+                                    <button class="icon-btn primary" id="btn-save" title="Salva Progetto">
+                                        <i data-lucide="save"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Blocchi principali: Sezione + Protezione -->
+                            <div class="res-blocks-container">
+                                <!-- Blocco 1: Cavo -->
+                                <div class="res-block">
+                                    <div class="res-block-icon cable-icon"><i data-lucide="cable"></i></div>
+                                    <div class="res-block-info">
+                                        <div class="res-block-lbl">Sezione Cavo</div>
+                                        <div class="res-block-val h1" id="res-sec">-- mm²</div>
                                     </div>
                                 </div>
-
-                                <div class="res-blocks-container">
-                                    <!-- Blocco 1: Cavo -->
-                                    <div class="res-block">
-                                        <div class="res-block-icon cable-icon"><i data-lucide="cable"></i></div>
-                                        <div class="res-block-info">
-                                            <div class="res-block-lbl">Sezione Cavo</div>
-                                            <div class="res-block-val h1" id="res-sec">-- mm²</div>
-                                        </div>
-                                    </div>
-                                    <!-- Blocco 2: Protezione -->
-                                    <div class="res-block">
-                                        <div class="res-block-icon prot-icon"><i data-lucide="shield-check"></i></div>
-                                        <div class="res-block-info">
-                                            <div class="res-block-lbl" id="res-prot-lbl">Taglia MCB</div>
-                                            <div class="res-block-val h1" id="res-in" style="color:var(--primary);">In =
-                                                -- A</div>
-                                        </div>
+                                <!-- Blocco 2: Protezione -->
+                                <div class="res-block">
+                                    <div class="res-block-icon prot-icon"><i data-lucide="shield-check"></i></div>
+                                    <div class="res-block-info">
+                                        <div class="res-block-lbl" id="res-prot-lbl">Protezione MCB</div>
+                                        <div class="res-block-val h1" id="res-in">In = -- A</div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Avviso di auto-aumento -->
-                            <div id="res-warn-increase" class="res-warning-banner hidden" style="margin-top: 0.5rem;">
-                                <i data-lucide="alert-circle" style="width:18px;height:18px;"></i>
-                                <span id="res-warn-increase-text">Sezione aumentata a -- mm² per garantire il
-                                    coordinamento.</span>
+                            <!-- Avviso di auto-aumento sezione -->
+                            <div id="res-warn-increase" class="res-warning-banner hidden">
+                                <i data-lucide="alert-circle"></i>
+                                <span id="res-warn-increase-text">Sezione aumentata a -- mm² per coordinamento.</span>
                             </div>
 
                             <div id="res-warning" class="res-warning-banner hidden"></div>
@@ -195,7 +209,7 @@
 
                             <div class="formula-status" id="f-status-msg">
                                 <i data-lucide="check-circle-2" id="f-status-icon"></i> <span
-                                    id="f-status-text">Condizione normativa rispettata con successo.</span>
+                                    id="f-status-text">Coordinamento Ib ≤ In ≤ Iz verificato.</span>
                             </div>
 
                             <div class="formula-status hidden" id="f-mt-relay-msg">
@@ -204,14 +218,23 @@
                                 <div class="status-desc">In MT il coordinamento del sovraccarico è gestito tramite relè a soglia impostabile a progetto (es. CEI 0-16).</div>
                             </div>
 
-                            <div class="res-grid-compact" style="margin-top:1.5rem;">
-                                <div class="res-item-premium">
-                                    <span class="res-label">Caduta ΔV</span>
-                                    <span class="res-val" id="res-dv">-- %</span>
+                            <!-- Striscia metriche sintetiche -->
+                            <div class="res-metrics-strip">
+                                <div class="res-metric-chip">
+                                    <span class="res-metric-lbl">Corrente Ib</span>
+                                    <span class="res-metric-val" id="res-ib">-- A</span>
                                 </div>
-                                <div class="res-item-premium">
-                                    <span class="res-label">Status Coordinamento</span>
-                                    <span class="res-val" id="res-status">--</span>
+                                <div class="res-metric-chip">
+                                    <span class="res-metric-lbl">Portata Iz</span>
+                                    <span class="res-metric-val" id="res-iz">-- A</span>
+                                </div>
+                                <div class="res-metric-chip">
+                                    <span class="res-metric-lbl">Caduta ΔV</span>
+                                    <span class="res-metric-val" id="res-dv">-- %</span>
+                                </div>
+                                <div class="res-metric-chip">
+                                    <span class="res-metric-lbl">Status</span>
+                                    <span class="res-metric-val" id="res-status">--</span>
                                 </div>
                             </div>
                             <div id="res-k-factors" class="res-k-banner hidden">
@@ -220,8 +243,9 @@
                         </div>
                     </div>
 
+                    <div class="inputs-panel">
                     <!-- 2. INPUT: Parametri Elettrici -->
-                    <div class="card">
+                    <div class="card card-params-el">
                         <h2><i data-lucide="zap"></i> 1. Parametri Elettrici</h2>
                         <div class="input-group">
                             <label>⚡ Sistema</label>
@@ -247,7 +271,7 @@
                             </div>
                         </div>
                         <div class="input-group" style="margin-top:1rem;">
-                            <label>📥 Dato di Ingresso</label>
+                            <label>📥 Dato di ingresso</label>
                             <div class="pill-group" id="pill-input-type">
                                 <button class="pill active" data-val="p">Potenza</button>
                                 <button class="pill" data-val="ib">Corrente</button>
@@ -265,7 +289,7 @@
                                 </div>
                             </div>
                             <div class="input-field" id="wrap-cosphi">
-                                <label><span class="lbl-icon">📐</span> Fattore di Potenza</label>
+                                <label><span class="lbl-icon">📐</span> Fattore di potenza</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-cosphi" step="0.01" value="0.9" min="0.1" max="1">
                                     <span class="unit">cos φ</span>
@@ -282,17 +306,17 @@
                     </div>
 
                     <!-- 3. INPUT: Configurazione Cavo -->
-                    <div class="card">
+                    <div class="card card-config-cavo">
                         <h2><i data-lucide="settings"></i> 2. Configurazione Cavo</h2>
                         <div class="input-group">
-                            <label>🔌 Cat. Tensione</label>
+                            <label>🔌 Categoria di tensione</label>
                             <div class="pill-group" id="pill-tens">
                                 <button class="pill active" data-val="bt_bassa_tensione">BT</button>
                                 <button class="pill" data-val="mt_media_tensione">MT</button>
                             </div>
                         </div>
                         <div class="input-group" style="margin-top:1rem;">
-                            <label>🔩 Materiale Conduttore</label>
+                            <label>🔩 Materiale conduttore</label>
                             <div class="pill-group" id="pill-mat">
                                 <button class="pill active" data-val="rame">Rame</button>
                                 <button class="pill" data-val="alluminio">Alluminio</button>
@@ -341,7 +365,7 @@
                     </div>
 
                     <!-- 3. INPUT: Protezione -->
-                    <div class="card" id="card-prot">
+                    <div class="card card-protezione" id="card-prot">
                         <h2>3. Impostazioni di Protezione</h2>
                         <div class="input-group" style="margin-bottom:0;">
                             <label><span class="lbl-icon">🛡️</span> Tipo di Protezione</label>
@@ -353,7 +377,7 @@
                     </div>
 
                     <!-- 4. INPUT: Fattori di Correzione (K) -->
-                    <div class="card accordion p-0" id="acc-k-card">
+                    <div class="card accordion p-0 card-fattori-k" id="acc-k-card">
                         <div class="accordion-header">
                             <div style="display:flex; align-items:center; gap:12px;">
                                 <i data-lucide="sliders-horizontal" style="color:var(--accent-cable)"></i>
@@ -364,21 +388,21 @@
                         <div class="accordion-content">
                             <div class="input-row">
                                 <div class="input-field">
-                                    <label id="lbl-temp"><span class="lbl-icon">🌡️</span> Temperatura (°C) [K1]</label>
+                                    <label id="lbl-temp"><span class="lbl-icon">🌡️</span> Temperatura (°C) – K1</label>
                                     <select id="sel-temp" class="m3-select"></select>
                                 </div>
                                 <div class="input-field">
-                                    <label><span class="lbl-icon">🗂️</span> Raggruppamento [K2]</label>
+                                    <label><span class="lbl-icon">🗂️</span> Raggruppamento – K2</label>
                                     <select id="sel-group" class="m3-select"></select>
                                 </div>
                             </div>
                             <div class="input-row" id="wrap-terra" style="display:none; margin-top:1rem;">
                                 <div class="input-field">
-                                    <label><span class="lbl-icon">⬇️</span> Profondità (m) [K3]</label>
+                                    <label><span class="lbl-icon">⬇️</span> Profondità di posa (m) – K3</label>
                                     <select id="sel-depth" class="m3-select"></select>
                                 </div>
                                 <div class="input-field">
-                                    <label><span class="lbl-icon">🌍</span> Resistività [K4]</label>
+                                    <label><span class="lbl-icon">🌍</span> Resistività terreno (Ω·m) – K4</label>
                                     <select id="sel-res" class="m3-select"></select>
                                 </div>
                             </div>
@@ -391,18 +415,12 @@
                             Esegui Calcolo
                         </button>
                     </div>
+                    </div><!-- /.inputs-panel -->
                 </div>
             </section>
 
             <!-- ══ SECTION: VERIFICA RAPIDA ΔV ══ -->
             <section id="sec-dv" class="view-section hidden">
-                <div class="top-app-bar top-dv">
-                    <button class="icon-btn-text btn-home" data-target="sec-home">
-                        <i data-lucide="arrow-left"></i> Home
-                    </button>
-                    <h2>Verifica ΔV</h2>
-                    <div style="width: 80px;"></div>
-                </div>
 
                 <div class="module-container">
                     <!-- Result card first, full width -->
@@ -411,6 +429,7 @@
                         <div class="res-value h1" id="q-res" style="font-size: 3.5rem; margin-top: 0.5rem; letter-spacing: -3px; color: var(--primary); font-weight: 900;">-- %</div>
                     </div>
 
+                    <div class="inputs-panel">
                     <!-- Inputs -->
                     <div class="card">
                         <h2><i data-lucide="activity"></i> Parametri Verfica ΔV</h2>
@@ -465,11 +484,20 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="input-field" style="margin-top:1rem;">
-                            <label><span class="lbl-icon">🔢</span> Sezione Cavo</label>
-                            <select id="q-sec" class="m3-select">
-                                <option value="" disabled selected>Seleziona...</option>
-                            </select>
+                        <div class="input-row" style="margin-top:1rem;">
+                            <div class="input-field">
+                                <label><span class="lbl-icon">🔢</span> Sezione Cavo</label>
+                                <select id="q-sec" class="m3-select">
+                                    <option value="" disabled selected>Seleziona...</option>
+                                </select>
+                            </div>
+                            <div class="input-field">
+                                <label><span class="lbl-icon">⚡</span> cos(φ)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="q-cosphi" value="0.9" min="0.1" max="1" step="0.01" placeholder="0.9">
+                                    <span class="unit">-</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -479,18 +507,12 @@
                             Calcola ΔV
                         </button>
                     </div>
+                    </div><!-- /.inputs-panel -->
                 </div>
             </section>
 
             <!-- ══ SECTION: STRINGHE FOTOVOLTAICO ══ -->
             <section id="sec-fotovoltaico" class="view-section hidden">
-                <div class="top-app-bar top-fv">
-                    <button class="icon-btn-text btn-home" data-target="sec-home">
-                        <i data-lucide="arrow-left"></i> Home
-                    </button>
-                    <h2>Progettazione FV</h2>
-                    <div style="width: 80px;"></div>
-                </div>
 
                 <div class="module-container">
                     <!-- PV Result Dashboard FIRST -->
@@ -501,16 +523,16 @@
                         </div>
                         <div class="result-data hidden" id="pv-res-data">
                             <!-- Dashboard Header -->
-                            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1.5px solid var(--outline); padding-bottom:0.75rem; margin-bottom:0.25rem;">
-                                <div style="font-weight:800; color:var(--primary); font-size:0.95rem; display:flex; align-items:center; gap:8px;">
-                                    <i data-lucide="layout-dashboard" style="width:18px;height:18px;"></i> RISULTATI PROGETTO PV
+                            <div class="pv-res-header">
+                                <div class="pv-res-header-title">
+                                    <i data-lucide="layout-dashboard"></i> RISULTATI PROGETTO PV
                                 </div>
-                                <div style="display:flex; gap:8px;">
-                                    <button class="icon-btn small" id="btn-export-pdf-pv" title="Scarica PDF">
-                                        <i data-lucide="download" style="width:16px;height:16px;"></i>
+                                <div class="res-actions">
+                                    <button class="icon-btn" id="btn-export-pdf-pv" title="Scarica PDF">
+                                        <i data-lucide="download"></i>
                                     </button>
-                                    <button class="icon-btn small primary" id="btn-save-pv" title="Salva Progetto PV">
-                                        <i data-lucide="save" style="width:16px;height:16px;"></i>
+                                    <button class="icon-btn primary" id="btn-save-pv" title="Salva Progetto PV">
+                                        <i data-lucide="save"></i>
                                     </button>
                                 </div>
                             </div>
@@ -530,47 +552,43 @@
                             <!-- Main Verification Grid -->
                             <div class="pv-premium-grid">
                                 <div class="pv-metric-box">
-                                    <i data-lucide="split" style="width:20px;height:20px;"></i>
+                                    <i data-lucide="split"></i>
                                     <span class="res-label">Range Moduli</span>
                                     <span class="res-val" id="pv-res-range">--</span>
                                 </div>
                                 <div class="pv-metric-box">
-                                    <i data-lucide="thermometer-snowflake" style="width:20px;height:20px;"></i>
+                                    <i data-lucide="thermometer-snowflake"></i>
                                     <span class="res-label">Voc @ T<sub>min</sub></span>
                                     <span class="res-val" id="pv-res-voc-tmin">-- V</span>
                                 </div>
                                 <div class="pv-metric-box">
-                                    <i data-lucide="thermometer-sun" style="width:20px;height:20px;"></i>
+                                    <i data-lucide="thermometer-sun"></i>
                                     <span class="res-label">Vmp @ T<sub>max</sub></span>
                                     <span class="res-val" id="pv-res-vmp-tmax">-- V</span>
                                 </div>
                                 <div class="pv-metric-box">
-                                    <i data-lucide="activity" style="width:20px;height:20px;"></i>
+                                    <i data-lucide="activity"></i>
                                     <span class="res-label">Architettura</span>
-                                    <span class="res-val" id="pv-res-arch-text" style="font-size:0.8rem; text-align:center;">--</span>
+                                    <span class="res-val pv-arch-val" id="pv-res-arch-text">--</span>
                                 </div>
                             </div>
 
                             <!-- MPPT Dynamic Configuration -->
-                            <div style="display:flex; flex-direction:column; gap:8px;">
-                                <div style="font-size:0.75rem; font-weight:800; color:var(--on-surface-variant); text-transform:uppercase; letter-spacing:0.5px; padding-left:4px;">
-                                    Configurazione MPPT
-                                </div>
-                                <div id="pv-mppt-dynamic-rows" style="display:flex; flex-direction:column; gap:8px;"></div>
+                            <div class="pv-res-section">
+                                <div class="pv-res-section-lbl">Configurazione MPPT</div>
+                                <div id="pv-mppt-dynamic-rows" class="pv-mppt-rows"></div>
                             </div>
 
                             <!-- Status Badge -->
                             <div class="pv-premium-status">
-                                <i data-lucide="check-circle-2" style="width:22px;height:22px;"></i>
+                                <i data-lucide="check-circle-2"></i>
                                 <span>VERIFICA TERMICA:</span>
                                 <span id="pv-res-status">--</span>
                             </div>
 
                             <!-- Technical Specs (Quadro CC) -->
-                            <div style="margin-top:0.5rem;">
-                                <div style="font-size:0.75rem; font-weight:800; color:var(--on-surface-variant); text-transform:uppercase; letter-spacing:0.5px; padding-left:4px; margin-bottom:8px;">
-                                    Dettagli Quadro CC e Protezioni
-                                </div>
+                            <div class="pv-res-section">
+                                <div class="pv-res-section-lbl">Dettagli Quadro CC e Protezioni</div>
                                 <div class="pv-details-grid">
                                     <div class="pv-detail-item">
                                         <i data-lucide="zap" class="pv-detail-icon"></i>
@@ -600,7 +618,7 @@
                                             <span class="pv-detail-value" id="pv-res-isc-str">--</span>
                                         </div>
                                     </div>
-                                    <div class="pv-detail-item" style="grid-column: span 2;">
+                                    <div class="pv-detail-item pv-detail-span2">
                                         <i data-lucide="activity" class="pv-detail-icon"></i>
                                         <div class="pv-detail-content">
                                             <span class="pv-detail-label">Vmp STC Stringa</span>
@@ -610,7 +628,7 @@
                                 </div>
                             </div>
 
-                            <div id="pv-res-warning" class="res-warning-banner hidden" style="margin-top:1rem;"></div>
+                            <div id="pv-res-warning" class="res-warning-banner hidden"></div>
                         </div>
                     </div>
 
@@ -624,14 +642,15 @@
                         <p id="pv-compat-error-msg" style="font-size:0.9rem; line-height:1.6; margin:0;"></p>
                     </div>
 
+                    <div class="inputs-panel">
                     <!-- ── SEZIONE A: INVERTER ── -->
-                    <div class="card">
+                    <div class="card card-inverter">
                         <h2>
                             <i data-lucide="cpu"></i>
-                            Dati Inverter
+                            Inverter &mdash; Specifiche Lato CC
                         </h2>
                         <div class="preset-toolbar">
-                            <select id="sel-preset-inverter" class="preset-select">
+                            <select id="sel-preset-inverter" class="preset-select m3-select" style="flex:1">
                                 <option value="">-- Carica preset --</option>
                             </select>
                             <button type="button" class="icon-btn preset-btn" id="btn-save-preset-inv"
@@ -645,15 +664,14 @@
                         </div>
                         <div class="input-row">
                             <div class="input-field">
-                                <label><span class="lbl-icon">🔋</span> Pot. Max Ingresso CC
-                                    (P<sub>max_cc</sub>)</label>
+                                <label>Potenza max ingresso CC (P<sub>dc,max</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-pmaxcc" step="0.1" value="" placeholder="5">
                                     <span class="unit">kW</span>
                                 </div>
                             </div>
                             <div class="input-field">
-                                <label><span class="lbl-icon">⚡</span> Tensione Max DC (V<sub>max</sub>)</label>
+                                <label>Tensione massima DC (V<sub>dc,max</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-vmaxdc" value="" placeholder="600">
                                     <span class="unit">V</span>
@@ -662,14 +680,14 @@
                         </div>
                         <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
-                                <label><span class="lbl-icon">📉</span> V MPPT Min (V<sub>mppt_min</sub>)</label>
+                                <label>Tensione MPPT minima (V<sub>mppt,min</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-mpptmin" value="" placeholder="150">
                                     <span class="unit">V</span>
                                 </div>
                             </div>
                             <div class="input-field">
-                                <label><span class="lbl-icon">📈</span> V MPPT Max</label>
+                                <label>Tensione MPPT massima (V<sub>mppt,max</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-mpptmax" value="" placeholder="500">
                                     <span class="unit">V</span>
@@ -678,14 +696,14 @@
                         </div>
                         <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
-                                <label><span class="lbl-icon">⚡</span> Corrente Max MPPT (I<sub>max</sub>)</label>
+                                <label>Corrente massima per tracker (I<sub>mppt,max</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-imax" step="0.1" value="" placeholder="12">
                                     <span class="unit">A</span>
                                 </div>
                             </div>
                             <div class="input-field">
-                                <label><span class="lbl-icon">🔢</span> N° MPPT indipendenti</label>
+                                <label>Numero di tracker MPPT</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-nmppt" value="" placeholder="2" min="1" step="1">
                                     <span class="unit">MPPT</span>
@@ -694,14 +712,14 @@
                         </div>
                         <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
-                                <label for="fv-nstringhe"><span class="lbl-icon">🔗</span> Stringhe in parallelo per MPPT</label>
+                                <label for="fv-nstringhe">Stringhe per tracker MPPT</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="fv-nstringhe" value="1" min="1" step="1">
                                     <span class="unit">n°</span>
                                 </div>
                             </div>
                             <div class="input-field">
-                                <label><span class="lbl-icon">🔌</span> Potenza Nominale CA (uscita)</label>
+                                <label>Potenza nominale AC in uscita (P<sub>ac,nom</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-pac" step="0.1" value="" placeholder="4.6">
                                     <span class="unit">kW</span>
@@ -711,13 +729,13 @@
                     </div>
 
                     <!-- ── SEZIONE B: MODULI ── -->
-                    <div class="card">
+                    <div class="card card-moduli-fv">
                         <h2>
                             <i data-lucide="sun"></i>
-                            Dati Modulo FV
+                            Modulo Fotovoltaico &mdash; Dati STC
                         </h2>
                         <div class="preset-toolbar">
-                            <select id="sel-preset-pannello" class="preset-select">
+                            <select id="sel-preset-pannello" class="preset-select m3-select" style="flex:1">
                                 <option value="">-- Carica preset --</option>
                             </select>
                             <button type="button" class="icon-btn preset-btn" id="btn-save-preset-pan"
@@ -731,14 +749,14 @@
                         </div>
                         <div class="input-row">
                             <div class="input-field">
-                                <label><span class="lbl-icon">☀️</span> Potenza Nominale (W<sub>p</sub>)</label>
+                                <label>Potenza di picco STC (P<sub>mpp</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-wp" value="" placeholder="400">
                                     <span class="unit">Wp</span>
                                 </div>
                             </div>
                             <div class="input-field">
-                                <label><span class="lbl-icon">⚡</span> Tensione V<sub>mp</sub></label>
+                                <label>Tensione al punto di max potenza (V<sub>mp</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-vmp" step="0.1" value="" placeholder="41.5">
                                     <span class="unit">V</span>
@@ -747,14 +765,14 @@
                         </div>
                         <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
-                                <label><span class="lbl-icon">⚡</span> Tensione V<sub>oc</sub></label>
+                                <label>Tensione a circuito aperto (V<sub>oc</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-voc" step="0.1" value="" placeholder="49.5">
                                     <span class="unit">V</span>
                                 </div>
                             </div>
                             <div class="input-field">
-                                <label><span class="lbl-icon">⚡</span> Corrente I<sub>sc</sub></label>
+                                <label>Corrente di cortocircuito (I<sub>sc</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-isc" step="0.1" value="" placeholder="10.5">
                                     <span class="unit">A</span>
@@ -763,15 +781,14 @@
                         </div>
                         <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
-                                <label><span class="lbl-icon">🌡️</span> Coeff. β (V<sub>oc</sub>)</label>
+                                <label>Coefficiente di temperatura β (V<sub>oc</sub>)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-beta" step="0.001" value="" placeholder="-0.29">
                                     <span class="unit">%/°C</span>
                                 </div>
                             </div>
-                            <div class="input-field">
-                                <label><span class="lbl-icon">🌡️</span> Coeff. γ (P<sub>max</sub>) <span
-                                        style="font-size:0.72rem;opacity:0.55;">(opz.)</span></label>
+                            <div class="input-field" style="display:none;">
+                                <label>Coefficiente di temperatura γ (P<sub>max</sub>) <span style="font-size:0.72rem;opacity:0.55;">(opz.)</span></label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-gamma" step="0.001" value="" placeholder="-0.37">
                                     <span class="unit">%/°C</span>
@@ -780,13 +797,13 @@
                         </div>
                         <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
-                                <label><span class="lbl-icon">🛡️</span> Protezione Modulo (I<sub>rev</sub>)</label>
-                                <div class="input-row" style="gap:4px; margin-top:0;">
+                                <label>Corrente massima inversa del modulo (I<sub>rev</sub>)</label>
+                                <div style="display:flex; flex-direction:row; gap:8px; align-items:stretch;">
                                     <div class="input-with-unit" style="flex:1;">
                                         <input type="number" id="in-pv-prot-val" value="25" placeholder="25">
                                         <span class="unit">A</span>
                                     </div>
-                                    <select id="in-pv-prot-type" class="m3-select" style="flex:1.5; height:42px;">
+                                    <select id="in-pv-prot-type" class="m3-select" style="flex:1.5;">
                                         <option value="fuse">Max Fusibile Serie</option>
                                         <option value="ocpr">Corrente Inversa (OCPR)</option>
                                     </select>
@@ -796,21 +813,21 @@
                     </div>
 
                     <!-- ── SEZIONE C: IMPIANTO + AMBIENTE ── -->
-                    <div class="card">
+                    <div class="card card-impianto-amb">
                         <h2>
                             <i data-lucide="layers"></i>
-                            Impianto & Ambiente
+                            Installazione e Condizioni Ambientali
                         </h2>
                         <div class="input-row">
                             <div class="input-field">
-                                <label><span class="lbl-icon">🔢</span> N° totale moduli</label>
+                                <label>Numero totale di moduli</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-ntot" value="" placeholder="20" min="1" step="1">
-                                    <span class="unit">mod.</span>
+                                    <span class="unit">mod</span>
                                 </div>
                             </div>
                             <div class="input-field">
-                                <label><span class="lbl-icon">📏</span> Lunghezza cavi CC</label>
+                                <label>Lunghezza cavi CC (singolo lato)</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-lcavo" value="" placeholder="15">
                                     <span class="unit">m</span>
@@ -819,14 +836,14 @@
                         </div>
                         <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
-                                <label><span class="lbl-icon">🌡️</span> Temp. Min locale</label>
+                                <label>Temperatura minima del sito</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-tmin" value="-10">
                                     <span class="unit">°C</span>
                                 </div>
                             </div>
                             <div class="input-field">
-                                <label><span class="lbl-icon">🌡️</span> Temp. Max locale</label>
+                                <label>Temperatura massima del sito</label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-tmax" value="35">
                                     <span class="unit">°C</span>
@@ -841,18 +858,12 @@
                             Calcola Impianto
                         </button>
                     </div>
+                    </div><!-- /.inputs-panel -->
                 </div>
             </section>
 
             <!-- ══ SECTION: ARCHIVIO PROGETTI E PRESET ══ -->
             <section id="sec-archive" class="view-section hidden">
-                <div class="top-app-bar">
-                    <button class="icon-btn-text btn-home" data-target="sec-home">
-                        <i data-lucide="arrow-left"></i> Home
-                    </button>
-                    <h2>Archivio & Preimpostazioni</h2>
-                    <div style="width: 80px;"></div>
-                </div>
 
                 <!-- Segments Control Header -->
                 <div class="archive-selection-container">
@@ -961,8 +972,10 @@
     <!-- ══ Toast Notification ══ -->
     <div id="toast-container" class="toast-container"></div>
 
+
     <script src="db.js"></script>
-    <script src="engine.js"></script>
+    <script src="engine-cavi.js"></script>
+    <script src="engine-fv.js"></script>
     <script src="app.js"></script>
 </body>
 
