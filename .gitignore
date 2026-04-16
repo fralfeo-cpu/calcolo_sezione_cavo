@@ -1,2 +1,14 @@
 node_modules/
 .env
+.vscode/
+dist/
+coverage/
+*.log
+*.tmp
+.DS_Store
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.bak
+*.backup
