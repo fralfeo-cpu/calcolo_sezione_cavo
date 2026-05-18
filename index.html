@@ -696,12 +696,21 @@
                         </div>
                         <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
-                                <label>Corrente massima per tracker (I<sub>mppt,max</sub>)</label>
+                                <label>Corrente massima per tracker <span class="label-formula">(I<sub>mppt,max</sub>)</span></label>
                                 <div class="input-with-unit">
                                     <input type="number" id="in-pv-imax" step="0.1" value="" placeholder="12">
                                     <span class="unit">A</span>
                                 </div>
                             </div>
+                            <div class="input-field">
+                                <label>Corrente massima Isc ingresso <span class="label-formula">(I<sub>sc,max</sub>)</span></label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="in-pv-iscmax" step="0.1" value="" placeholder="18">
+                                    <span class="unit">A</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
                                 <label>Numero di tracker MPPT</label>
                                 <div class="input-with-unit">
@@ -778,6 +787,16 @@
                                     <span class="unit">A</span>
                                 </div>
                             </div>
+                        </div>
+                        <div class="input-row" style="margin-top:1rem">
+                            <div class="input-field">
+                                <label>Corrente al punto di max potenza (I<sub>mp</sub>)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="in-pv-imp" step="0.1" value="" placeholder="9.8">
+                                    <span class="unit">A</span>
+                                </div>
+                            </div>
+                            <div class="input-field"></div>
                         </div>
                         <div class="input-row" style="margin-top:1rem">
                             <div class="input-field">
