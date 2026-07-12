@@ -1,0 +1,211 @@
+                        <div class="input-row">
+                            <div class="input-field">
+                                <label>Potenza AC/DC (P<sub>ac</sub> / P<sub>dc,max</sub>)</label>
+                                <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:8px;">
+                                    <div class="input-with-unit" style="flex:1" title="Potenza nominale AC in uscita">
+                                        <input type="number" id="in-pv-pac" step="0.1" value="" placeholder="4.6">
+                                        <span class="unit">kW</span>
+                                    </div>
+                                    <div class="input-with-unit" style="flex:1" title="Potenza max ingresso CC">
+                                        <input type="number" id="in-pv-pmaxcc" step="0.1" value="" placeholder="5">
+                                        <span class="unit">kW</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="input-field">
+                                <label>Tensione Max / Tracker (V<sub>dc,max</sub> / N<sub>mppt</sub>)</label>
+                                <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:8px;">
+                                    <div class="input-with-unit" style="flex:1" title="Tensione massima DC">
+                                        <input type="number" id="in-pv-vmaxdc" value="" placeholder="600">
+                                        <span class="unit">V</span>
+                                    </div>
+                                    <div class="input-with-unit" style="flex:1" title="Numero di tracker MPPT">
+                                        <input type="number" id="in-pv-nmppt" value="" placeholder="2" min="1" step="1">
+                                        <span class="unit">n°</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="input-row" style="margin-top:1rem">
+                            <div class="input-field">
+                                <label>Range MPPT (V<sub>min</sub> - V<sub>max</sub>)</label>
+                                <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:8px;">
+                                    <div class="input-with-unit" style="flex:1" title="Tensione MPPT minima">
+                                        <input type="number" id="in-pv-mpptmin" value="" placeholder="150">
+                                        <span class="unit">V</span>
+                                    </div>
+                                    <div class="input-with-unit" style="flex:1" title="Tensione MPPT massima">
+                                        <input type="number" id="in-pv-mpptmax" value="" placeholder="500">
+                                        <span class="unit">V</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="input-field">
+                                <label>Correnti Max (I<sub>mppt</sub> / I<sub>sc</sub>)</label>
+                                <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:8px;">
+                                    <div class="input-with-unit" style="flex:1" title="Corrente massima per tracker">
+                                        <input type="number" id="in-pv-imax" step="0.1" value="" placeholder="12">
+                                        <span class="unit">A</span>
+                                    </div>
+                                    <div class="input-with-unit" style="flex:1" title="Corrente massima Isc ingresso">
+                                        <input type="number" id="in-pv-iscmax" step="0.1" value="" placeholder="18">
+                                        <span class="unit">A</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="input-row" style="margin-top:1rem">
+                            <div class="input-field" style="max-width: 50%;">
+                                <label for="fv-nstringhe">Stringhe per tracker MPPT</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="fv-nstringhe" value="1" min="1" step="1">
+                                    <span class="unit">n°</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── SEZIONE B: MODULI ── -->
+                    <div class="card card-moduli-fv">
+                        <h2>
+                            <i data-lucide="sun"></i>
+                            Modulo Fotovoltaico &mdash; Dati STC
+                        </h2>
+                        <div class="preset-toolbar">
+                            <select id="sel-preset-pannello" class="preset-select m3-select" style="flex:1">
+                                <option value="">-- Carica preset --</option>
+                            </select>
+                            <button type="button" class="icon-btn preset-btn" id="btn-save-preset-pan"
+                                title="Salva preset pannello">
+                                <i data-lucide="save" style="width:16px;height:16px;"></i>
+                            </button>
+                            <button type="button" class="icon-btn preset-btn preset-btn-del" id="btn-del-preset-pan"
+                                title="Elimina preset selezionato">
+                                <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                            </button>
+                        </div>
+                        <div class="input-row">
+                            <div class="input-field">
+                                <label>Potenza Nominale (P<sub>mpp</sub>)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="in-pv-wp" value="" placeholder="400">
+                                    <span class="unit">Wp</span>
+                                </div>
+                            </div>
+                            <div class="input-field">
+                                <label>Protezione Modulo (I<sub>rev</sub>)</label>
+                                <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap:8px;">
+                                    <div class="input-with-unit" style="flex:1;">
+                                        <input type="number" id="in-pv-prot-val" value="25" placeholder="25">
+                                        <span class="unit">A</span>
+                                    </div>
+                                    <select id="in-pv-prot-type" class="m3-select" style="flex:1.5;">
+                                        <option value="fuse">Fusibile Serie</option>
+                                        <option value="ocpr">OCPR</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="input-row" style="margin-top:1rem">
+                            <div class="input-field">
+                                <label>V<sub>mp</sub> / I<sub>mp</sub> (Max Potenza)</label>
+                                <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:8px;">
+                                    <div class="input-with-unit" style="flex:1" title="Tensione al punto di max potenza">
+                                        <input type="number" id="in-pv-vmp" step="0.1" value="" placeholder="41.5">
+                                        <span class="unit">V</span>
+                                    </div>
+                                    <div class="input-with-unit" style="flex:1" title="Corrente al punto di max potenza">
+                                        <input type="number" id="in-pv-imp" step="0.1" value="" placeholder="9.8">
+                                        <span class="unit">A</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="input-field">
+                                <label>V<sub>oc</sub> / I<sub>sc</sub> (Circuito Aperto / Corto)</label>
+                                <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:8px;">
+                                    <div class="input-with-unit" style="flex:1" title="Tensione a circuito aperto">
+                                        <input type="number" id="in-pv-voc" step="0.1" value="" placeholder="49.5">
+                                        <span class="unit">V</span>
+                                    </div>
+                                    <div class="input-with-unit" style="flex:1" title="Corrente di cortocircuito">
+                                        <input type="number" id="in-pv-isc" step="0.1" value="" placeholder="10.5">
+                                        <span class="unit">A</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="input-row" style="margin-top:1rem">
+                            <div class="input-field">
+                                <label>Coeff. Temp. β (V<sub>oc</sub>)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="in-pv-beta" step="0.001" value="" placeholder="-0.29">
+                                    <span class="unit">%/°C</span>
+                                </div>
+                            </div>
+                            <div class="input-field">
+                                <label>Coeff. Temp. γ (P<sub>max</sub>) <span style="font-size:0.72rem;opacity:0.55;">(opz.)</span></label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="in-pv-gamma" step="0.001" value="" placeholder="-0.37">
+                                    <span class="unit">%/°C</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── SEZIONE C: IMPIANTO + AMBIENTE ── -->
+                    <div class="card card-impianto-amb">
+                        <h2>
+                            <i data-lucide="layers"></i>
+                            Installazione e Condizioni Ambientali
+                        </h2>
+                        <div class="input-row">
+                            <div class="input-field">
+                                <label>Moduli e Cavi CC</label>
+                                <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:8px;">
+                                    <div class="input-with-unit" style="flex:1" title="Numero totale di moduli">
+                                        <input type="number" id="in-pv-ntot" value="" placeholder="20" min="1" step="1">
+                                        <span class="unit">mod</span>
+                                    </div>
+                                    <div class="input-with-unit" style="flex:1" title="Lunghezza cavi CC (singolo lato)">
+                                        <input type="number" id="in-pv-lcavo" value="" placeholder="15">
+                                        <span class="unit">m</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="input-field">
+                                <label>Temperature Sito (T<sub>min</sub> / T<sub>max</sub>)</label>
+                                <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:8px;">
+                                    <div class="input-with-unit" style="flex:1" title="Temperatura minima del sito">
+                                        <input type="number" id="in-pv-tmin" value="-10">
+                                        <span class="unit">°C</span>
+                                    </div>
+                                    <div class="input-with-unit" style="flex:1" title="Temperatura massima del sito">
+                                        <input type="number" id="in-pv-tmax" value="35">
+                                        <span class="unit">°C</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-bar-bottom">
+                        <button class="pill btn-large" id="btn-calc-pv" disabled>
+                            <i data-lucide="sun" style="width:20px;height:20px;"></i>
+                            Calcola Impianto
+                        </button>
+                    </div>
+                    </div><!-- /.inputs-panel -->
+                </div>
+            </section>
+
+            <!-- ══ SECTION: ARCHIVIO PROGETTI E PRESET ══ -->
+            <section id="sec-archive" class="view-section hidden">
+
+                <!-- Segments Control Header -->
+                <div class="archive-selection-container">
+                    <div class="archive-tabs">
+                        <button class="archive-tab active" data-tab="tab-cavi">
+                            <i data-lucide="cable"></i> <span>Linee</span>
+                        </button>
+                        <button class="archive-tab" data-tab="tab-fv">
+

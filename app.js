@@ -20,6 +20,36 @@ const POSA_LABELS = {
     "interrato_diretto": "Cavi posati direttamente nel terreno (con eventuale letto di sabbia)"
 };
 
+const FIELD_CACHE = new Map();
+let currentVisibleSectionId = 'sec-home';
+
+function getField(id) {
+    if (!FIELD_CACHE.has(id)) {
+        FIELD_CACHE.set(id, document.getElementById(id));
+    }
+    return FIELD_CACHE.get(id);
+}
+
+function areFieldsFilled(ids, allowPlaceholder = false) {
+    return ids.every(id => {
+        const el = getField(id);
+        if (!el) return false;
+        if (el.value === '' || el.value === null) return false;
+        if (!allowPlaceholder && el.value === 'Seleziona...') return false;
+        return true;
+    });
+}
+
+function initCardPointerGlow() {
+    document.addEventListener('pointermove', (e) => {
+        const card = e.target.closest('.card, .dash-card');
+        if (!card) return;
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+        card.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+    });
+}
+
 function formatPosaName(key) {
     return POSA_LABELS[key] || key.replace(/_/g, ' ').toUpperCase();
 }
@@ -64,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
     populateQuickCheckSections();
     initUI();
+    initCardPointerGlow();
     if (typeof updateParallelSpacingVisibility === 'function') updateParallelSpacingVisibility();
     initPresets();
     updateLists();
@@ -109,9 +140,13 @@ function initUI() {
     // returns to the previous section instead of closing the app.
 
     navigateTo = function(targetId, addToHistory = true) {
-        document.querySelectorAll('.view-section').forEach(sec => sec.classList.add('hidden'));
-        const section = document.getElementById(targetId);
-        if (section) section.classList.remove('hidden');
+        if (currentVisibleSectionId !== targetId) {
+            const previous = document.getElementById(currentVisibleSectionId);
+            if (previous) previous.classList.add('hidden');
+            const section = document.getElementById(targetId);
+            if (section) section.classList.remove('hidden');
+            currentVisibleSectionId = targetId;
+        }
 
         // Sync desktop navigation active state
         document.querySelectorAll('.desktop-nav-btn').forEach(btn => {
@@ -528,23 +563,15 @@ function validateForm(targetId) {
         const inputType = document.querySelector('#pill-input-type .active')?.getAttribute('data-val');
         if (inputType === 'p') reqIds.push('in-cosphi');
 
-        reqIds.forEach(id => {
-            const el = document.getElementById(id);
-            if (!el || el.value === "" || el.value === null) isValid = false;
-        });
+        isValid = areFieldsFilled(reqIds);
 
         // K factors select check if visible
         const env = document.getElementById('sel-posa')?.value?.includes('interrato') ? 'terreno' : 'aria';
-        if (env === 'terreno') {
-            ['sel-temp', 'sel-group', 'sel-depth', 'sel-res'].forEach(id => {
-                const el = document.getElementById(id);
-                if (!el || el.value === "") isValid = false;
-            });
-        } else {
-            ['sel-temp', 'sel-group'].forEach(id => {
-                const el = document.getElementById(id);
-                if (!el || el.value === "") isValid = false;
-            });
+        if (isValid) {
+            const kIds = env === 'terreno'
+                ? ['sel-temp', 'sel-group', 'sel-depth', 'sel-res']
+                : ['sel-temp', 'sel-group'];
+            isValid = areFieldsFilled(kIds);
         }
 
         const btnCalc = document.getElementById('btn-calc');
@@ -552,20 +579,14 @@ function validateForm(targetId) {
 
     } else if (targetId === 'sec-dv') {
         const reqIds = ['q-v', 'q-ib', 'q-l', 'q-cat', 'q-mat', 'q-sec', 'q-cosphi'];
-        reqIds.forEach(id => {
-            const el = document.getElementById(id);
-            if (!el || el.value === "" || el.value === null || el.value === "Seleziona...") isValid = false;
-        });
+        isValid = areFieldsFilled(reqIds, false);
 
         const btnCalcDv = document.getElementById('btn-calc-dv');
         if (btnCalcDv) btnCalcDv.disabled = !isValid;
     } else if (targetId === 'sec-fotovoltaico') {
         // gamma (in-pv-gamma) is optional and hidden; pac and nStringhe are required by engine
-        const pvRequired = ['in-pv-vmaxdc', 'in-pv-nmppt', 'in-pv-imax', 'in-pv-mpptmin', 'in-pv-mpptmax', 'in-pv-pmaxcc', 'in-pv-pac', 'fv-nstringhe', 'in-pv-wp', 'in-pv-beta', 'in-pv-voc', 'in-pv-isc', 'in-pv-vmp', 'in-pv-ntot', 'in-pv-lcavo', 'in-pv-tmin', 'in-pv-tmax'];
-        pvRequired.forEach(id => {
-            const el = document.getElementById(id);
-            if (!el || el.value === "" || el.value === null) isValid = false;
-        });
+        const pvRequired = ['in-pv-vmaxdc', 'in-pv-nmppt', 'in-pv-imax', 'in-pv-iscmax', 'in-pv-mpptmin', 'in-pv-mpptmax', 'in-pv-pmaxcc', 'in-pv-pac', 'fv-nstringhe', 'in-pv-wp', 'in-pv-beta', 'in-pv-voc', 'in-pv-isc', 'in-pv-imp', 'in-pv-vmp', 'in-pv-ntot', 'in-pv-lcavo', 'in-pv-tmin', 'in-pv-tmax'];
+        isValid = areFieldsFilled(pvRequired);
 
         const btnCalcPv = document.getElementById('btn-calc-pv');
         if (btnCalcPv) btnCalcPv.disabled = !isValid;
@@ -692,6 +713,7 @@ function upgradeSelects() {
                 if (select.value !== opt.value) {
                     select.value = opt.value;
                     select.dispatchEvent(new Event('input', { bubbles: true }));
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
                 }
 
                 span.textContent = opt.text;
@@ -999,10 +1021,14 @@ function pvHideCompatError() {
 }
 
 function gatherPVInputs() {
+    const iscMaxInput = parseFloat(document.getElementById('in-pv-iscmax')?.value);
+    const iMaxInput = parseFloat(document.getElementById('in-pv-imax')?.value);
+
     return {
         vmaxdc: parseFloat(document.getElementById('in-pv-vmaxdc')?.value),
         nmppt: parseInt(document.getElementById('in-pv-nmppt')?.value) || 1,
-        imax: parseFloat(document.getElementById('in-pv-imax')?.value),
+        imax: iMaxInput,
+        iscmax: iscMaxInput,
         nStringhe: parseInt(document.getElementById('fv-nstringhe')?.value) || 1,
         mpptmin: parseFloat(document.getElementById('in-pv-mpptmin')?.value),
         mpptmax: parseFloat(document.getElementById('in-pv-mpptmax')?.value),
@@ -1012,6 +1038,7 @@ function gatherPVInputs() {
         beta: parseFloat(document.getElementById('in-pv-beta')?.value),
         voc: parseFloat(document.getElementById('in-pv-voc')?.value),
         isc: parseFloat(document.getElementById('in-pv-isc')?.value),
+        imp: parseFloat(document.getElementById('in-pv-imp')?.value),
         vmp: parseFloat(document.getElementById('in-pv-vmp')?.value),
         ntot: parseInt(document.getElementById('in-pv-ntot')?.value),
         lcavo: parseFloat(document.getElementById('in-pv-lcavo')?.value),
@@ -1161,9 +1188,10 @@ function generatePVResultHTML(result) {
             warning.innerHTML = warns.map(w => {
                 if (w.cond === 2) {
                     return `<div style="display:flex;align-items:center;gap:8px;"><i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0;"></i><span><strong>Condizione 2 – MPPT ${w.mppt}:</strong> U<sub>mpp,min</sub> = ${w.value} V &lt; U<sub>MPPT,min</sub> = ${w.limit} V. Tensione MPP minima sotto il range MPPT inverter.</span></div>`;
-                } else {
+                } else if (w.cond === 3) {
                     return `<div style="display:flex;align-items:center;gap:8px;"><i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0;"></i><span><strong>Condizione 3 – MPPT ${w.mppt}:</strong> U<sub>mpp,max</sub> = ${w.value} V &gt; U<sub>MPPT,max</sub> = ${w.limit} V. Tensione MPP massima oltre il range MPPT inverter.</span></div>`;
                 }
+                return `<div style="display:flex;align-items:center;gap:8px;"><i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0;"></i><span><strong>Condizione 4 – MPPT ${w.mppt}:</strong> ${w.msg || 'Caduta di tensione superiore al limite del 1%.'}</span></div>`;
             }).join('');
             warning.classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
@@ -1232,7 +1260,8 @@ function pvResetResultCard() {
 function getPresets(type) {
     try {
         const data = localStorage.getItem(`preset_${type}`);
-        return data ? JSON.parse(data) : [];
+        const parsed = data ? JSON.parse(data) : [];
+        return Array.isArray(parsed) ? parsed : [];
     } catch (e) { return []; }
 }
 
@@ -1270,6 +1299,8 @@ function initPresets() {
             panSelect.appendChild(opt);
         });
     }
+
+    if (typeof upgradeSelects === 'function') upgradeSelects();
 }
 
 function salvaPresetInverter() {
@@ -1283,6 +1314,7 @@ function salvaPresetInverter() {
         mpptmin: document.getElementById('in-pv-mpptmin')?.value,
         mpptmax: document.getElementById('in-pv-mpptmax')?.value,
         imax: document.getElementById('in-pv-imax')?.value,
+        iscmax: document.getElementById('in-pv-iscmax')?.value,
         pmaxcc: document.getElementById('in-pv-pmaxcc')?.value,
         pac: document.getElementById('in-pv-pac')?.value,
         nmppt: document.getElementById('in-pv-nmppt')?.value,
@@ -1294,6 +1326,7 @@ function salvaPresetInverter() {
     savePresets('inverter', presets);
     initPresets();
     document.getElementById('sel-preset-inverter').value = preset.id;
+    if (typeof syncCustomSelects === 'function') syncCustomSelects('sel-preset-inverter');
     showToast("Preset inverter salvato.");
 }
 
@@ -1308,6 +1341,7 @@ function salvaPresetPannello() {
         voc: document.getElementById('in-pv-voc')?.value,
         vmp: document.getElementById('in-pv-vmp')?.value,
         isc: document.getElementById('in-pv-isc')?.value,
+        imp: document.getElementById('in-pv-imp')?.value,
         beta: document.getElementById('in-pv-beta')?.value,
         gamma: document.getElementById('in-pv-gamma')?.value,
         protVal: document.getElementById('in-pv-prot-val')?.value,
@@ -1319,6 +1353,7 @@ function salvaPresetPannello() {
     savePresets('pannello', presets);
     initPresets();
     document.getElementById('sel-preset-pannello').value = preset.id;
+    if (typeof syncCustomSelects === 'function') syncCustomSelects('sel-preset-pannello');
     showToast("Preset pannello salvato.");
 }
 
@@ -1328,31 +1363,55 @@ function loadPreset(type, id) {
     const preset = presets.find(p => p.id === id);
     if (!preset) return;
 
+    // Helper: set value and fire 'input' event so live validation picks it up
+    const setVal = (elId, val) => {
+        if (val === undefined || val === null) return;
+        const el = document.getElementById(elId);
+        if (!el) return;
+        el.value = val;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
     if (type === 'inverter') {
-        if (preset.vmaxdc !== undefined) document.getElementById('in-pv-vmaxdc').value = preset.vmaxdc;
-        if (preset.mpptmin !== undefined) document.getElementById('in-pv-mpptmin').value = preset.mpptmin;
-        if (preset.mpptmax !== undefined) document.getElementById('in-pv-mpptmax').value = preset.mpptmax;
-        if (preset.imax !== undefined) document.getElementById('in-pv-imax').value = preset.imax;
-        if (preset.pmaxcc !== undefined) document.getElementById('in-pv-pmaxcc').value = preset.pmaxcc;
-        if (preset.pac !== undefined) document.getElementById('in-pv-pac').value = preset.pac;
-        if (preset.nmppt !== undefined) document.getElementById('in-pv-nmppt').value = preset.nmppt;
-        if (preset.nStringhe !== undefined) document.getElementById('fv-nstringhe').value = preset.nStringhe;
+        setVal('in-pv-vmaxdc', preset.vmaxdc);
+        setVal('in-pv-mpptmin', preset.mpptmin);
+        setVal('in-pv-mpptmax', preset.mpptmax);
+        setVal('in-pv-imax', preset.imax);
+        const iscMaxEl = document.getElementById('in-pv-iscmax');
+        if (iscMaxEl) {
+            if (preset.iscmax !== undefined && preset.iscmax !== '') {
+                iscMaxEl.value = preset.iscmax;
+            } else if (preset.imax !== undefined && preset.imax !== '') {
+                // Legacy preset migration: old inverter presets had only Imax.
+                iscMaxEl.value = preset.imax;
+            }
+            iscMaxEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        setVal('in-pv-pmaxcc', preset.pmaxcc);
+        setVal('in-pv-pac', preset.pac);
+        setVal('in-pv-nmppt', preset.nmppt);
+        setVal('fv-nstringhe', preset.nStringhe);
     } else if (type === 'pannello') {
-        if (preset.wp !== undefined) document.getElementById('in-pv-wp').value = preset.wp;
-        if (preset.voc !== undefined) document.getElementById('in-pv-voc').value = preset.voc;
-        if (preset.vmp !== undefined) document.getElementById('in-pv-vmp').value = preset.vmp;
-        if (preset.isc !== undefined) document.getElementById('in-pv-isc').value = preset.isc;
-        if (preset.beta !== undefined) document.getElementById('in-pv-beta').value = preset.beta;
-        if (preset.gamma !== undefined) document.getElementById('in-pv-gamma').value = preset.gamma;
-        if (preset.protVal !== undefined) document.getElementById('in-pv-prot-val').value = preset.protVal;
+        setVal('in-pv-wp', preset.wp);
+        setVal('in-pv-voc', preset.voc);
+        setVal('in-pv-vmp', preset.vmp);
+        setVal('in-pv-isc', preset.isc);
+        setVal('in-pv-imp', preset.imp);
+        setVal('in-pv-beta', preset.beta);
+        setVal('in-pv-gamma', preset.gamma);
+        setVal('in-pv-prot-val', preset.protVal);
         if (preset.protType !== undefined) {
-            document.getElementById('in-pv-prot-type').value = preset.protType;
-            syncCustomSelects('in-pv-prot-type');
+            const ptEl = document.getElementById('in-pv-prot-type');
+            if (ptEl) {
+                ptEl.value = preset.protType;
+                ptEl.dispatchEvent(new Event('change', { bubbles: true }));
+                syncCustomSelects('in-pv-prot-type');
+            }
         }
     }
-    validateForm('sec-fotovoltaico');
     if (typeof calculatePV === 'function') calculatePV();
 }
+
 
 function deletePreset(type) {
     const select = document.getElementById(`sel-preset-${type}`);
@@ -1444,7 +1503,7 @@ function showToast(message) {
 
 
 // pvInputIds is accessible here because it is defined inside initUI() – replicate the list
-const PV_INPUT_IDS_ALL = ['in-pv-vmaxdc', 'in-pv-nmppt', 'in-pv-imax', 'fv-nstringhe', 'in-pv-mpptmin', 'in-pv-mpptmax', 'in-pv-pmaxcc', 'in-pv-pac', 'in-pv-wp', 'in-pv-beta', 'in-pv-voc', 'in-pv-isc', 'in-pv-vmp', 'in-pv-ntot', 'in-pv-lcavo', 'in-pv-tmin', 'in-pv-tmax', 'in-pv-gamma', 'in-pv-prot-val', 'in-pv-prot-type'];
+const PV_INPUT_IDS_ALL = ['in-pv-vmaxdc', 'in-pv-nmppt', 'in-pv-imax', 'in-pv-iscmax', 'fv-nstringhe', 'in-pv-mpptmin', 'in-pv-mpptmax', 'in-pv-pmaxcc', 'in-pv-pac', 'in-pv-wp', 'in-pv-beta', 'in-pv-voc', 'in-pv-isc', 'in-pv-imp', 'in-pv-vmp', 'in-pv-ntot', 'in-pv-lcavo', 'in-pv-tmin', 'in-pv-tmax', 'in-pv-gamma', 'in-pv-prot-val', 'in-pv-prot-type'];
 
 function buildUiState() {
     const uiState = {};
@@ -2393,6 +2452,7 @@ function generaPDF(proj) {
                 ['Tensione Massima DC (Vmaxdc)', d.inputs.vmaxdc, 'V'],
                 ['Range MPPT Operativo (Min/Max)', `${d.inputs.mpptmin} \u2013 ${d.inputs.mpptmax}`, 'V'],
                 ['Corrente Massima MPPT (Imax)', d.inputs.imax, 'A'],
+                ['Corrente Massima Isc ingresso (IscMax)', d.inputs.iscmax, 'A'],
                 ['Potenza Massima Ingresso CC', d.inputs.pmaxcc, 'kW'],
                 ...(d.inputs.pac != null && !isNaN(d.inputs.pac) ? [['Potenza Nominale CA', d.inputs.pac, 'kW']] : []),
                 ['Numero di MPPT indipendenti', d.inputs.nmppt, '-'],
@@ -2476,7 +2536,8 @@ function generaPDF(proj) {
             const checkRowsArr = d.mpptConfig.map(cfg => {
                 const vmax_ok = cfg.vsez <= d.inputs.vmaxdc;
                 const vmin_ok = (cfg.vmin || 0) >= d.inputs.mpptmin;
-                const imax_ok = cfg.iscMax <= d.inputs.imax;
+                const iscMaxLimit = Number(d.inputs.iscmax);
+                const imax_ok = cfg.iscMax <= iscMaxLimit;
                 return [
                     `MPPT ${cfg.mppt} (${cfg.stringhe || d.inputs.nStringhe} str)`,
                     vmax_ok ? 'RISPETTATA' : 'FUTURA',
@@ -2484,7 +2545,7 @@ function generaPDF(proj) {
                     vmin_ok ? 'RISPETTATA' : 'FUTURA',
                     safeStr(`Vmin=${(cfg.vmin||0).toFixed(0)}V >= ${d.inputs.mpptmin}V`),
                     imax_ok ? 'RISPETTATA' : 'FUTURA',
-                    safeStr(`Imax=${cfg.iscMax.toFixed(1)}A <= ${d.inputs.imax}A`)
+                    safeStr(`IscMax=${cfg.iscMax.toFixed(1)}A <= ${iscMaxLimit}A`)
                 ];
             });
             doc.autoTable({
